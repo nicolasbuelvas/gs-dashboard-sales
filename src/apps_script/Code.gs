@@ -12,10 +12,6 @@ function showDashboard() {
   SpreadsheetApp.getUi().showSidebar(html);
 }
 
-/**
- * Retorna todos los datos del CSV ya cargado en la hoja
- * IMPORTANTE: Debe existir una hoja llamada "SalesData"
- */
 function getSalesData() {
   const sheet = SpreadsheetApp.getActive().getSheetByName("SalesData");
   const rows = sheet.getDataRange().getValues();

@@ -1,17 +1,37 @@
 <!DOCTYPE html>
-
 <html>
-
 <head>
-
   <base target="_top">
-  <link rel="stylesheet" href="styles.css">
   <script src="https://www.gstatic.com/charts/loader.js"></script>
 
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    .kpis {
+      display: flex;
+      gap: 20px;
+    }
+
+    .kpi-card {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 6px;
+      width: 200px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    #chart_productline,
+    #chart_sales_by_month {
+      margin-top: 30px;
+    }
+  </style>
 </head>
 
 <body>
-
   <h2> Sales Dashboard </h2>
 
   <div id="summary"></div>
@@ -19,21 +39,15 @@
   <div id="chart_sales_by_month"></div>
 
   <script>
-
-    google.charts.load("current", {packages:["corechart"]});
+    google.charts.load("current", {packages:["corechart", "bar", "line"]});
     google.charts.setOnLoadCallback(loadData);
 
     function loadData() {
-
       google.script.run.withSuccessHandler(renderDashboard).getSalesData();
-
     }
 
     function renderDashboard(data) {
-
       if (!data || !data.length) return;
-
-      // KPI SUMMARY
 
       const total = data.reduce((acc, r) => acc + Number(r["SALES"]), 0);
       const orders = new Set(data.map(r => r["ORDERNUMBER"])).size;
@@ -51,8 +65,6 @@
         </div>
       `;
 
-      // SALES BY PRODUCTLINE
-
       const productMap = {};
       data.forEach(r => {
         const pl = r["PRODUCTLINE"];
@@ -64,10 +76,9 @@
 
       const chartPL = new google.visualization.PieChart(document.getElementById("chart_productline"));
       chartPL.draw(google.visualization.arrayToDataTable(productArr), {
-        title: "Sales by Product Line"
+        title: "Sales by Product Line",
+        pieHole: 0.4
       });
-
-      // SALES BY MONTH
 
       const monthMap = {};
       data.forEach(r => {
@@ -80,10 +91,10 @@
 
       const chartMonth = new google.visualization.LineChart(document.getElementById("chart_sales_by_month"));
       chartMonth.draw(google.visualization.arrayToDataTable(monthArr), {
-        title: "Sales by Month"
+        title: "Sales by Month",
+        legend: { position: "none" }
       });
     }
-
   </script>
 
 </body>
