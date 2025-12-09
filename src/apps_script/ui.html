@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+  <base target="_top">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+
+</head>
+
+<body>
+
+  <h2> Sales Dashboard </h2>
+
+  <div id="summary"></div>
+  <div id="chart_productline"></div>
+  <div id="chart_sales_by_month"></div>
+
+  <script>
+
+    google.charts.load("current", {packages:["corechart"]});
+    google.charts.setOnLoadCallback(loadData);
+
+    function loadData() {
+
+      google.script.run.withSuccessHandler(renderDashboard).getSalesData();
+
+    }
+
+    function renderDashboard(data) {
+
+      if (!data || !data.length) return;
+
+      // KPI SUMMARY
+
+      const total = data.reduce((acc, r) => acc + Number(r["SALES"]), 0);
+      const orders = new Set(data.map(r => r["ORDERNUMBER"])).size;
+
+      document.getElementById("summary").innerHTML = `
+        <div class="kpis">
+          <div class="kpi-card">
+            <h3>Total Sales</h3>
+            <p>$${total.toLocaleString()}</p>
+          </div>
+          <div class="kpi-card">
+            <h3>Total Orders</h3>
+            <p>${orders}</p>
+          </div>
+        </div>
+      `;
+
+      // SALES BY PRODUCTLINE
+
+      const productMap = {};
+      data.forEach(r => {
+        const pl = r["PRODUCTLINE"];
+        productMap[pl] = (productMap[pl] || 0) + Number(r["SALES"]);
+      });
+
+      const productArr = [["Product Line", "Sales"]];
+      for (let p in productMap) productArr.push([p, productMap[p]]);
+
+      const chartPL = new google.visualization.PieChart(document.getElementById("chart_productline"));
+      chartPL.draw(google.visualization.arrayToDataTable(productArr), {
+        title: "Sales by Product Line"
+      });
+
+      // SALES BY MONTH
+
+      const monthMap = {};
+      data.forEach(r => {
+        const m = r["MONTH_ID"] + "/" + r["YEAR_ID"];
+        monthMap[m] = (monthMap[m] || 0) + Number(r["SALES"]);
+      });
+
+      const monthArr = [["Month", "Sales"]];
+      Object.keys(monthMap).sort().forEach(m => monthArr.push([m, monthMap[m]]));
+
+      const chartMonth = new google.visualization.LineChart(document.getElementById("chart_sales_by_month"));
+      chartMonth.draw(google.visualization.arrayToDataTable(monthArr), {
+        title: "Sales by Month"
+      });
+    }
+
+  </script>
+
+</body>
+
+</html>
