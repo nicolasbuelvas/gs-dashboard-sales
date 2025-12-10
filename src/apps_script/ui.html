@@ -1,102 +1,77 @@
+<!-- ui.html -->
 <!DOCTYPE html>
 <html>
 <head>
   <base target="_top">
   <script src="https://www.gstatic.com/charts/loader.js"></script>
-
+  <meta charset="utf-8" />
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-    }
-
-    .kpis {
-      display: flex;
-      gap: 20px;
-    }
-
-    .kpi-card {
-      background: #f9f9f9;
-      padding: 15px;
-      border-radius: 6px;
-      width: 200px;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    #chart_productline,
-    #chart_sales_by_month {
-      margin-top: 30px;
-    }
+    body { font-family: Arial, sans-serif; padding: 18px; }
+    .kpis { display: flex; gap: 18px; margin-bottom: 18px; flex-wrap:wrap; }
+    .kpi-card { background: #fafafa; padding: 14px; border-radius: 6px; width: 220px; text-align:center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    #chart_productline, #chart_sales_by_month { width: 100%; max-width: 100%; height: 340px; margin-top: 16px; }
   </style>
 </head>
 
 <body>
-  <h2> Sales Dashboard </h2>
-
-  <div id="summary"></div>
+  <h2>Sales Dashboard</h2>
+  <div id="summary">Cargando...</div>
   <div id="chart_productline"></div>
   <div id="chart_sales_by_month"></div>
 
   <script>
-    google.charts.load("current", {packages:["corechart", "bar", "line"]});
+    google.charts.load("current", { packages:["corechart","line"] });
     google.charts.setOnLoadCallback(loadData);
 
     function loadData() {
-      google.script.run.withSuccessHandler(renderDashboard).getSalesData();
+      google.script.run
+        .withFailureHandler(function(e){ alert("Error cargando datos: " + e); console.error(e); })
+        .withSuccessHandler(renderDashboard)
+        .getSalesData();
     }
 
-    function renderDashboard(data) {
-      if (!data || !data.length) return;
+    function safeNumber(v){ v = v === null || v === undefined ? 0 : v; v = (typeof v === "number") ? v : Number(String(v).replace(/,/g,'').trim()); return isNaN(v) ? 0 : v; }
 
-      const total = data.reduce((acc, r) => acc + Number(r["SALES"]), 0);
-      const orders = new Set(data.map(r => r["ORDERNUMBER"])).size;
+    function renderDashboard(data) {
+      if (!data || !data.length) {
+        document.getElementById("summary").innerHTML = "<b>No hay datos disponibles.</b><br>Ejecuta normalizeSheet() desde el editor para ver errores o revisa que la hoja se llame exactamente <code>SalesData</code>.";
+        return;
+      }
+
+      console.info("Rows received:", data.length, data[0]);
+
+      // KPIs
+      const totalSales = data.reduce((acc, r) => acc + safeNumber(r.SALES), 0);
+      const totalOrders = new Set(data.map(r => String(r.ORDERNUMBER))).size;
 
       document.getElementById("summary").innerHTML = `
         <div class="kpis">
-          <div class="kpi-card">
-            <h3>Total Sales</h3>
-            <p>$${total.toLocaleString()}</p>
-          </div>
-          <div class="kpi-card">
-            <h3>Total Orders</h3>
-            <p>${orders}</p>
-          </div>
+          <div class="kpi-card"><h4>Total Sales</h4><div style="font-size:18px;">$${totalSales.toLocaleString()}</div></div>
+          <div class="kpi-card"><h4>Total Orders</h4><div style="font-size:18px;">${totalOrders}</div></div>
         </div>
       `;
 
-      const productMap = {};
-      data.forEach(r => {
-        const pl = r["PRODUCTLINE"];
-        productMap[pl] = (productMap[pl] || 0) + Number(r["SALES"]);
-      });
+      // Product line pie
+      const prodMap = {};
+      data.forEach(r => { const k = r.PRODUCTLINE || "UNKNOWN"; prodMap[k] = (prodMap[k] || 0) + safeNumber(r.SALES); });
+      const prodArr = [["Product Line","Sales"]];
+      Object.keys(prodMap).forEach(k => prodArr.push([k, prodMap[k]]));
+      const prodData = google.visualization.arrayToDataTable(prodArr);
+      new google.visualization.PieChart(document.getElementById("chart_productline")).draw(prodData, { title: "Sales by Product Line", pieHole: 0.35 });
 
-      const productArr = [["Product Line", "Sales"]];
-      for (let p in productMap) productArr.push([p, productMap[p]]);
-
-      const chartPL = new google.visualization.PieChart(document.getElementById("chart_productline"));
-      chartPL.draw(google.visualization.arrayToDataTable(productArr), {
-        title: "Sales by Product Line",
-        pieHole: 0.4
-      });
-
+      // Sales by month line
       const monthMap = {};
       data.forEach(r => {
-        const m = r["MONTH_ID"] + "/" + r["YEAR_ID"];
-        monthMap[m] = (monthMap[m] || 0) + Number(r["SALES"]);
+        const m = (r.MONTH_ID || "") + "/" + (r.YEAR_ID || "");
+        monthMap[m] = (monthMap[m] || 0) + safeNumber(r.SALES);
       });
-
-      const monthArr = [["Month", "Sales"]];
-      Object.keys(monthMap).sort().forEach(m => monthArr.push([m, monthMap[m]]));
-
-      const chartMonth = new google.visualization.LineChart(document.getElementById("chart_sales_by_month"));
-      chartMonth.draw(google.visualization.arrayToDataTable(monthArr), {
-        title: "Sales by Month",
-        legend: { position: "none" }
-      });
+      const monthArr = [["Month","Sales"]];
+      Object.keys(monthMap).sort().forEach(k => monthArr.push([k, monthMap[k]]));
+      const monthData = google.visualization.arrayToDataTable(monthArr);
+      new google.visualization.LineChart(document.getElementById("chart_sales_by_month")).draw(monthData, { title: "Sales by Month", pointSize: 4 });
     }
   </script>
-
+  
 </body>
 
 </html>
