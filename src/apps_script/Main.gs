@@ -1,3 +1,11 @@
+/** 
+ * SALES DASHBOARD (Sheets API)
+ * Google Sheets + Apps Script + Google Sheets Api
+*/
+
+const SHEET_NAME = "sales_data_sample";
+const SPREADSHEET_ID = SpreadsheetApp.getActive().getId();
+
 const EXPECTED_HEADERS = [
   "ORDERNUMBER","QUANTITYORDERED","PRICEEACH","ORDERLINENUMBER","SALES","ORDERDATE",
   "STATUS","QTR_ID","MONTH_ID","YEAR_ID","PRODUCTLINE","MSRP","PRODUCTCODE",
@@ -13,31 +21,91 @@ function onOpen() {
 }
 
 function showDashboard() {
-  var html = HtmlService.createTemplateFromFile("ui").evaluate()
-    .setTitle("Sales Dashboard")
-    .setWidth(1200);
+  const html = HtmlService.createTemplateFromFile("Ui")
+    .evaluate()
+    .setWidth(380)
+    .setTitle("Sales Dashboard");
   SpreadsheetApp.getUi().showSidebar(html);
 }
 
-function normalizeSheet() {
+function getFullscreenHTML() {
+  return HtmlService.createTemplateFromFile("Ui").evaluate().getContent();
+}
+
+function getSalesData_vC() {
+  try {
+    const range = SHEET_NAME;
+    const resp = Sheets.Spreadsheets.Values.get(SPREADSHEET_ID, range);
+    const rows = resp.values || [];
+    return { raw: rows };
+  } catch (e) {
+    return { error: String(e), raw: [] };
+  }
+}
+
+/**
+ * DEBUG PIPELINE
+*/
+
+function debugSalesPipeline() {
+  const log = msg => Logger.log("🔍 " + msg);
+
+  log("=== START DEBUG PIPELINE ===");
+
   const ss = SpreadsheetApp.getActive();
-  const sheet = ss.getSheetByName("SalesData");
-  if (!sheet) throw new Error("Hoja 'SalesData' no encontrada.");
+  const sheet = ss.getSheetByName(SHEET_NAME);
 
-  const raw = sheet.getDataRange().getValues();
-  if (!raw || raw.length <= 1) throw new Error("Hoja vacía o sin datos.");
+  if (!sheet) {
+    log("❌ Sheet not found: " + SHEET_NAME);
+    return;
+  }
+  log("✔ Sheet found");
 
-  const rawHeaders = raw[0].map(h => String(h || "").trim());
-  // Mapeo de índice por header (sin limpiar)
+  let rows;
+  try {
+    rows = sheet.getDataRange().getValues();
+    log("✔ Rows loaded: " + rows.length);
+  } catch (e) {
+    log("❌ Error reading sheet: " + e);
+    return;
+  }
+
+  const rawHeaders = rows[0].map(h => String(h ?? "").trim());
+  log("Headers: " + JSON.stringify(rawHeaders));
+
+  EXPECTED_HEADERS.forEach(h => {
+    if (!rawHeaders.includes(h)) log("⚠ Missing header: " + h);
+  });
+
+  log("=== Normalizing ===");
+  try {
+    const normalized = normalizeRowsInMemory_debug(rows);
+    log("✔ Normalized rows: " + normalized.length);
+  } catch (e) {
+    log("❌ Error normalizing: " + e);
+  }
+
+  log("=== END DEBUG PIPELINE ===");
+}
+
+function normalizeRowsInMemory_debug(rows) {
+  const log = msg => Logger.log("   ↳ " + msg);
+
+  const rawHeaders = rows[0].map(h => String(h ?? "").trim());
   const idxMap = {};
-  rawHeaders.forEach((h,i)=> idxMap[h] = i);
+  rawHeaders.forEach((h, i) => idxMap[h] = i);
+
+  log("Index map: " + JSON.stringify(idxMap));
 
   const out = [];
-  out.push(EXPECTED_HEADERS.slice());
 
-  for (let r = 1; r < raw.length; r++) {
-    const row = raw[r];
-    const newRow = [];
+  for (let r = 1; r < rows.length; r++) {
+    log("Row " + r);
+
+    const row = rows[r];
+    const temp = {};
+    let validSales = 0;
+    let validOrder = 0;
 
     EXPECTED_HEADERS.forEach(h => {
       let val = "";
@@ -45,84 +113,47 @@ function normalizeSheet() {
       if (idxMap.hasOwnProperty(h)) {
         val = row[idxMap[h]];
       } else {
-        // Intentar con variantes: mayúsculas/minúsculas, espacios, etc.
         for (const k in idxMap) {
-          if (k.toUpperCase().replace(/\s+/g,"") === h) {
+          if (k.toUpperCase().replace(/\s+/g, "") === h) {
             val = row[idxMap[k]];
             break;
           }
         }
       }
 
-      if (val === null || val === undefined || val === "") {
-        newRow.push("");
-      } else {
-        // Número decimal: reconocer coma
-        if (["PRICEEACH","SALES","MSRP"].includes(h)) {
-          let s = String(val).replace(/\./g, "").replace(",", ".");
-          const num = parseFloat(s);
-          newRow.push(isNaN(num) ? 0 : num);
-        }
-        // Enteros
-        else if (["ORDERNUMBER","QUANTITYORDERED","ORDERLINENUMBER","QTR_ID","MONTH_ID","YEAR_ID"].includes(h)) {
-          const num = parseInt(String(val).replace(/\D/g, ""), 10);
-          newRow.push(isNaN(num) ? 0 : num);
-        }
-        // Fecha
-        else if (h === "ORDERDATE") {
-          let dd = String(val).trim();
-          // esperar formato dd/mm/yyyy HH:MM o mm/dd/yyyy HH:MM
-          const parts = dd.split(" ");
-          const datePart = parts[0];
-          const timePart = parts[1] || "";
-          const sp = datePart.split("/");
-          if (sp.length === 3) {
-            let day = parseInt(sp[0],10);
-            let month = parseInt(sp[1],10) - 1;
-            let year = parseInt(sp[2],10);
-            let hour = 0, min = 0;
-            if (timePart) {
-              const tp = timePart.split(":");
-              hour = parseInt(tp[0],10) || 0;
-              min = parseInt(tp[1],10) || 0;
-            }
-            const dt = new Date(year, month, day, hour, min);
-            newRow.push(dt);
-          } else {
-            newRow.push("");
-          }
-        }
+      if (["PRICEEACH","SALES","MSRP"].includes(h)) {
+        let s = String(val).replace(/\./g, "").replace(",", ".");
+        const num = parseFloat(s);
+        temp[h] = isNaN(num) ? 0 : num;
+        if (h === "SALES") validSales = temp[h];
+      }
+      else if (["ORDERNUMBER","QUANTITYORDERED","ORDERLINENUMBER","QTR_ID","MONTH_ID","YEAR_ID"].includes(h)) {
+        const num = parseInt(String(val).replace(/\D/g, ""), 10);
+        temp[h] = isNaN(num) ? 0 : num;
+        if (h === "ORDERNUMBER") validOrder = temp[h];
+      }
+      else if (h === "ORDERDATE") {
+        if (val instanceof Date) temp[h] = val;
         else {
-          newRow.push(String(val).trim());
+          const p = String(val).split(" ")[0]?.split("/") || [];
+          if (p.length === 3) {
+            const d = new Date(+p[2], p[1]-1, +p[0]);
+            temp[h] = isNaN(d) ? "" : d;
+          } else temp[h] = "";
         }
+      }
+      else {
+        temp[h] = String(val).trim();
       }
     });
 
-    // Filtrar sólo filas con ventas > 0
-    const sales = newRow[EXPECTED_HEADERS.indexOf("SALES")];
-    const orderNum = newRow[EXPECTED_HEADERS.indexOf("ORDERNUMBER")];
-    if (sales > 0 && orderNum > 0) {
-      out.push(newRow);
+    if (validSales > 0 && validOrder > 0) {
+      out.push(temp);
+      log("✔ Added");
+    } else {
+      log("✖ Discarded");
     }
   }
 
-  sheet.clearContents();
-  sheet.getRange(1,1,out.length, EXPECTED_HEADERS.length).setValues(out);
-  // Puedes agregar formatos si quieres
-}
-
-function getSalesData() {
-  try { normalizeSheet(); }
-  catch(e) { Logger.log("normalizeSheet error: " + e); }
-
-  const sheet = SpreadsheetApp.getActive().getSheetByName("SalesData");
-  const rows = sheet.getDataRange().getValues();
-  if (rows.length <= 1) return [];
-
-  const headers = rows.shift();
-  return rows.map(r => {
-    const obj = {};
-    headers.forEach((h,i) => obj[h] = r[i]);
-    return obj;
-  });
+  return out;
 }

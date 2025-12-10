@@ -1,77 +1,178 @@
-<!-- ui.html -->
 <!DOCTYPE html>
+
 <html>
 <head>
-  <base target="_top">
-  <script src="https://www.gstatic.com/charts/loader.js"></script>
-  <meta charset="utf-8" />
-  <style>
-    body { font-family: Arial, sans-serif; padding: 18px; }
-    .kpis { display: flex; gap: 18px; margin-bottom: 18px; flex-wrap:wrap; }
-    .kpi-card { background: #fafafa; padding: 14px; border-radius: 6px; width: 220px; text-align:center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-    #chart_productline, #chart_sales_by_month { width: 100%; max-width: 100%; height: 340px; margin-top: 16px; }
-  </style>
+<meta charset="utf-8">
+<base target="_top">
+<script src="https://www.gstatic.com/charts/loader.js"></script>
+
+<style>
+  body { font-family: Inter, Arial; margin: 0; padding: 16px; background: #f6f9fc; }
+  header { display: flex; justify-content: space-between; align-items: center; }
+  h1 { margin: 0; font-size: 18px; color: #1a73e8; }
+  button { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; }
+  .primary { background: #1a73e8; color: white; }
+  .card { background: white; padding: 14px; margin-top: 14px; border-radius: 8px; }
+  .chart { height: 320px; }
+  #loader { font-size: 14px; margin-top: 6px; color: #555; }
+</style>
 </head>
 
 <body>
-  <h2>Sales Dashboard</h2>
-  <div id="summary">Cargando...</div>
-  <div id="chart_productline"></div>
-  <div id="chart_sales_by_month"></div>
+<header>
+  <h1>Sales Dashboard</h1>
+  <div>
+    <button class="primary" onclick="analyze()">Analyze</button>
+    <button onclick="expand()">Expand</button>
+  </div>
+</header>
 
-  <script>
-    google.charts.load("current", { packages:["corechart","line"] });
-    google.charts.setOnLoadCallback(loadData);
+<div class="card">
+  <div id="message">Press Analyze to load data.</div>
+  <div id="loader" style="display:none;"></div>
 
-    function loadData() {
-      google.script.run
-        .withFailureHandler(function(e){ alert("Error cargando datos: " + e); console.error(e); })
-        .withSuccessHandler(renderDashboard)
-        .getSalesData();
-    }
+  <div id="kpis" style="display:flex;gap:18px;margin-top:12px;"></div>
 
-    function safeNumber(v){ v = v === null || v === undefined ? 0 : v; v = (typeof v === "number") ? v : Number(String(v).replace(/,/g,'').trim()); return isNaN(v) ? 0 : v; }
+  <div style="text-align:right;margin-top:8px;">
+    <button onclick="popChart()">Enlarge Chart</button>
+  </div>
 
-    function renderDashboard(data) {
-      if (!data || !data.length) {
-        document.getElementById("summary").innerHTML = "<b>No hay datos disponibles.</b><br>Ejecuta normalizeSheet() desde el editor para ver errores o revisa que la hoja se llame exactamente <code>SalesData</code>.";
+  <div id="chart" class="chart"></div>
+</div>
+
+<script>
+google.charts.load('current', { packages:['corechart','line'] });
+
+let lastChartData = null;
+
+function expand() {
+  google.script.run.withSuccessHandler(html => {
+    const w = window.open('', '_blank');
+    if (!w) { alert('Please enable pop-ups to open the window.'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  }).getFullscreenHTML();
+}
+
+function popChart() {
+  if (!lastChartData) {
+    alert("No chart available.");
+    return;
+  }
+  const w = window.open("", "_blank", "width=600,height=500");
+  if (!w) { alert("Please enable pop-ups to view the chart."); return; }
+
+  w.document.write("<div id='chart' style='width:100%;height:100%;'></div>");
+  w.document.close();
+
+  google.charts.setOnLoadCallback(() => {
+    const chart = new google.visualization.PieChart(w.document.getElementById('chart'));
+    chart.draw(lastChartData, { pieHole: 0.4 });
+  });
+}
+
+function analyze() {
+  const msg = document.getElementById('message');
+  const loader = document.getElementById('loader');
+
+  msg.textContent = "Loading...";
+  msg.style.display = "block";
+  loader.style.display = "block";
+
+  let sec = 0;
+  const timer = setInterval(() => {
+    sec++;
+    loader.textContent = "Loading... (" + sec + "s)";
+  }, 1000);
+
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res.error) {
+        clearInterval(timer);
+        msg.textContent = "Error: " + res.error;
         return;
       }
 
-      console.info("Rows received:", data.length, data[0]);
+      if (!res.raw || !res.raw.length) {
+        clearInterval(timer);
+        msg.textContent = "No rows found.";
+        return;
+      }
 
-      // KPIs
-      const totalSales = data.reduce((acc, r) => acc + safeNumber(r.SALES), 0);
-      const totalOrders = new Set(data.map(r => String(r.ORDERNUMBER))).size;
+      loader.textContent = "Loaded " + res.raw.length + " rows...";
 
-      document.getElementById("summary").innerHTML = `
-        <div class="kpis">
-          <div class="kpi-card"><h4>Total Sales</h4><div style="font-size:18px;">$${totalSales.toLocaleString()}</div></div>
-          <div class="kpi-card"><h4>Total Orders</h4><div style="font-size:18px;">${totalOrders}</div></div>
-        </div>
-      `;
+      google.charts.setOnLoadCallback(() => {
+        const data = normalizeClient(res.raw);
 
-      // Product line pie
-      const prodMap = {};
-      data.forEach(r => { const k = r.PRODUCTLINE || "UNKNOWN"; prodMap[k] = (prodMap[k] || 0) + safeNumber(r.SALES); });
-      const prodArr = [["Product Line","Sales"]];
-      Object.keys(prodMap).forEach(k => prodArr.push([k, prodMap[k]]));
-      const prodData = google.visualization.arrayToDataTable(prodArr);
-      new google.visualization.PieChart(document.getElementById("chart_productline")).draw(prodData, { title: "Sales by Product Line", pieHole: 0.35 });
+        if (!data.length) {
+          clearInterval(timer);
+          msg.textContent = "No valid rows after filtering.";
+          return;
+        }
 
-      // Sales by month line
-      const monthMap = {};
-      data.forEach(r => {
-        const m = (r.MONTH_ID || "") + "/" + (r.YEAR_ID || "");
-        monthMap[m] = (monthMap[m] || 0) + safeNumber(r.SALES);
+        clearInterval(timer);
+        msg.style.display = "none";
+        loader.style.display = "none";
+
+        render(data);
       });
-      const monthArr = [["Month","Sales"]];
-      Object.keys(monthMap).sort().forEach(k => monthArr.push([k, monthMap[k]]));
-      const monthData = google.visualization.arrayToDataTable(monthArr);
-      new google.visualization.LineChart(document.getElementById("chart_sales_by_month")).draw(monthData, { title: "Sales by Month", pointSize: 4 });
-    }
-  </script>
-  
-</body>
+    })
+    .withFailureHandler(err => {
+      clearInterval(timer);
+      msg.textContent = "Error: " + err;
+    })
+    .getSalesData_vC();
+}
 
+function normalizeClient(raw) {
+  const headers = raw[0].map(h => String(h || '').trim());
+  const out = [];
+
+  for (let i = 1; i < raw.length; i++) {
+    const row = raw[i];
+    const obj = {};
+    headers.forEach((h, c) => obj[h] = row[c]);
+    const sales = Number(String(obj.SALES||0).replace(/,/g,''));
+    const order = Number(String(obj.ORDERNUMBER||0).replace(/\D/g,''));
+    if (sales > 0 && order > 0) {
+      obj.SALES = sales;
+      obj.ORDERNUMBER = order;
+      out.push(obj);
+    }
+  }
+  return out;
+}
+
+function render(data) {
+  const kpis = document.getElementById('kpis');
+
+  const totalSales = data.reduce((s, r) => s + r.SALES, 0);
+  const totalOrders = new Set(data.map(r => r.ORDERNUMBER)).size;
+
+  kpis.innerHTML =
+    "<div><b>Total Sales</b><div style='color:#1a73e8'>$" +
+    totalSales.toLocaleString() +
+    "</div></div>" +
+    "<div><b>Total Orders</b><div>" +
+    totalOrders +
+    "</div></div>";
+
+  const prod = {};
+  data.forEach(r => prod[r.PRODUCTLINE] = (prod[r.PRODUCTLINE] || 0) + r.SALES);
+
+  const arr = [['Product', 'Sales']];
+  Object.keys(prod).forEach(k => arr.push([k, prod[k]]));
+
+  lastChartData = google.visualization.arrayToDataTable(arr);
+
+  const chart = new google.visualization.PieChart(document.getElementById('chart'));
+  chart.draw(lastChartData, {
+    title: 'Sales by Product Line',
+    pieHole: 0.36,
+    chartArea: { left: 20, top: 40, width: '80%', height: '75%' }
+  });
+}
+</script>
+</body>
 </html>
