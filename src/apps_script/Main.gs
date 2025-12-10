@@ -28,7 +28,6 @@ function showDashboard() {
     '  }catch(e){' +
     '    alert("Unable to open new tab. Please allow popups for this site.");' +
     '  }' +
-    '  try{ google.script.host.close(); }catch(e){}' +
     '}).getFullscreenHTML();' +
     '</script>' +
     '</body></html>'
@@ -145,15 +144,4 @@ function normalizeRowsInMemory_debug(rows) {
     if (valSales > 0 && valOrder > 0) out.push(temp);
   }
   return out;
-}
-
-function onEdit(e) {
-  try {
-    PropertiesService.getScriptProperties().setProperty('dashboardRefreshTS', Date.now().toString());
-  } catch (err) {
-  }
-}
-
-function getDashboardRefreshTS() {
-  return PropertiesService.getScriptProperties().getProperty('dashboardRefreshTS') || null;
 }

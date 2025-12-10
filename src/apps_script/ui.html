@@ -54,6 +54,8 @@ select,input{padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#
       <select id="yearFilter"><option value="">All</option></select>
       <label class="small">Product</label>
       <select id="productFilter"><option value="">All</option></select>
+      <label class="small">Auto-refresh</label>
+      <select id="autoRefresh"><option value="0">Off</option><option value="30">30s</option><option value="60">60s</option><option value="300">5m</option></select>
     </div>
     <div class="info-right">
       <div id="loader" class="small">Status: Idle</div>
@@ -100,7 +102,7 @@ select,input{padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#
     </div>
   </div>
 
-  <div class="footer">gs-dashboard-sales · Interactive Sales Dashboard built with Google Sheets + Apps Script · Nicolas Buelvas</div>
+  <div class="footer">gs-dashboard-sales · Interactive Sales Dashboard built with Google Sheets + Apps Script</div>
 </div>
 
 <div class="modal-overlay" id="modalOverlay">
@@ -118,6 +120,7 @@ google.charts.load('current', { packages:['corechart','bar','line'] });
 
 let rawRows = [];
 let normalized = [];
+let refreshTimer = null;
 let secondsTimer = null;
 let secondCount = 0;
 
@@ -126,14 +129,19 @@ document.getElementById('exportBtn').addEventListener('click', exportPdf);
 document.getElementById('debugBtn').addEventListener('click', runDebug);
 document.getElementById('yearFilter').addEventListener('change', drawAllCharts);
 document.getElementById('productFilter').addEventListener('change', drawAllCharts);
+document.getElementById('autoRefresh').addEventListener('change', setupAutoRefresh);
 document.querySelectorAll('.expand-btn').forEach(b => b.addEventListener('click', e => openModalForChart(e.currentTarget.dataset.chart)));
 document.getElementById('closeModal').addEventListener('click', closeModal);
-window.addEventListener('focus', () => checkRefresh());
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkRefresh(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadInitialData(); });
 
-function setLoader(text) { document.getElementById('loader').textContent = 'Status: ' + text; }
+function setLoader(text) {
+  document.getElementById('loader').textContent = 'Status: ' + text;
+}
 
-function tickSeconds() { secondCount++; setLoader('Loading... (' + secondCount + 's)'); }
+function tickSeconds() {
+  secondCount++;
+  setLoader('Loading... (' + secondCount + 's)');
+}
 
 function analyzeLive() {
   if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
@@ -146,7 +154,6 @@ function analyzeLive() {
       if (res.error) { setLoader('Error: ' + res.error); return; }
       rawRows = res.raw || [];
       try { localStorage.setItem('gs_dashboard_raw', JSON.stringify(rawRows)); } catch(e){}
-      localStorage.setItem('gs_last_refresh_ts', Date.now().toString());
       document.getElementById('rowsCount').textContent = rawRows.length;
       normalized = normalizeClient(rawRows);
       populateFilters(normalized);
@@ -159,23 +166,7 @@ function analyzeLive() {
     }).getSalesData_vC();
   } else {
     setLoader('Live fetch unavailable');
-    // no alert here: user may close opener intentionally
-  }
-}
-
-function checkRefresh() {
-  const lastLocal = Number(localStorage.getItem('gs_last_refresh_ts') || 0);
-  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
-    window.opener.google.script.run.withSuccessHandler(ts => {
-      const remote = Number(ts || 0);
-      if (remote && remote > lastLocal) {
-        analyzeLive();
-      }
-    }).withFailureHandler(() => {
-      // ignore
-    }).getDashboardRefreshTS();
-  } else {
-    // opener not available: nothing to do (cached mode)
+    alert('Live fetch unavailable. Make sure the small opener dialog is still open in the Sheets window.');
   }
 }
 
@@ -195,7 +186,6 @@ function loadInitialData() {
   if (typeof INITIAL_RAW !== 'undefined' && INITIAL_RAW && INITIAL_RAW.length) {
     rawRows = INITIAL_RAW;
     try { localStorage.setItem('gs_dashboard_raw', JSON.stringify(rawRows)); } catch(e){}
-    localStorage.setItem('gs_last_refresh_ts', Date.now().toString());
     document.getElementById('rowsCount').textContent = rawRows.length;
     normalized = normalizeClient(rawRows);
     populateFilters(normalized);
@@ -305,6 +295,12 @@ function drawTopCustomers(data) {
   const dt = google.visualization.arrayToDataTable(arr);
   const chart = new google.visualization.BarChart(document.getElementById('chartCustomers'));
   chart.draw(dt, { title: '', chartArea: { left: 160, top: 20, width: '70%', height: '70%' }, legend: { position: 'none' } });
+}
+
+function setupAutoRefresh() {
+  const val = Number(document.getElementById('autoRefresh').value) || 0;
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  if (val > 0) { refreshTimer = setInterval(() => { analyzeLive(); }, val * 1000); }
 }
 
 function startSeconds() {
