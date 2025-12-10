@@ -6,8 +6,12 @@
 <title>Sales Dashboard</title>
 <script src="https://www.gstatic.com/charts/loader.js"></script>
 <style>
-:root{--bg:#f6f9fc;--card:#fff;--accent:#1a73e8;--muted:#6b7280;--glass:rgba(16,24,40,0.04)}
-html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:#0b1220}
+:root{
+  --bg:#f6f9fc;--card:#fff;--accent:#1a73e8;--muted:#6b7280;--glass:rgba(16,24,40,0.04)
+}
+html,body{
+  height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:#0b1220
+}
 .container{max-width:1200px;margin:20px auto;padding:20px}
 .header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
 .title{font-size:20px;color:var(--accent);font-weight:700}
@@ -31,7 +35,11 @@ select,input{padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#
 .preview{width:100%;height:320px;display:block}
 .expand-btn{background:transparent;border:1px solid #eaecef;padding:6px 10px;border-radius:8px;cursor:pointer}
 .footer{padding:12px 0;font-size:13px;color:var(--muted);text-align:center}
-@media(max-width:980px){.charts-grid{grid-template-columns:1fr}.kpi{width:100%}.container{padding:12px}}
+@media(max-width:980px){
+  .charts-grid{grid-template-columns:1fr}
+  .kpi{width:100%}
+  .container{padding:12px}
+}
 .modal-overlay{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:none;align-items:center;justify-content:center;z-index:9999}
 .modal{background:#fff;border-radius:8px;padding:18px;width:90%;max-width:1100px;max-height:90vh;overflow:auto}
 .modal .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
@@ -55,7 +63,12 @@ select,input{padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#
       <label class="small">Product</label>
       <select id="productFilter"><option value="">All</option></select>
       <label class="small">Auto-refresh</label>
-      <select id="autoRefresh"><option value="0">Off</option><option value="5">5s</option><option value="60">60s</option><option value="300">5m</option></select>
+      <select id="autoRefresh">
+        <option value="0">Off</option>
+        <option value="5">5s</option>
+        <option value="60">60s</option>
+        <option value="300">5m</option>
+      </select>
     </div>
     <div class="info-right">
       <div id="loader" class="small">Status: Idle</div>
@@ -134,283 +147,112 @@ document.querySelectorAll('.expand-btn').forEach(b => b.addEventListener('click'
 document.getElementById('closeModal').addEventListener('click', closeModal);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) loadInitialData(); });
 
-function setLoader(text) {
-  document.getElementById('loader').textContent = 'Status: ' + text;
-}
-
-function tickSeconds() {
-  secondCount++;
-  setLoader('Loading... (' + secondCount + 's)');
-}
+function setLoader(text){ document.getElementById('loader').textContent = 'Status: ' + text; }
+function tickSeconds(){ secondCount++; setLoader('Loading... (' + secondCount + 's)'); }
 
 function refreshLive() {
-  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
+  if (window.google && window.google.script && window.google.script.run) {
     disableButtons(true);
     startSeconds();
     setLoader('Requesting data (live)...');
-    window.opener.google.script.run.withSuccessHandler(res => {
+    window.google.script.run.withSuccessHandler(res => {
       stopSeconds();
       disableButtons(false);
-      if (res.error) { setLoader('Error: ' + res.error); return; }
+      if(res.error){ setLoader('Error: ' + res.error); return; }
       rawRows = res.raw || [];
-      try { localStorage.setItem('gs_dashboard_raw', JSON.stringify(rawRows)); } catch(e){}
+      try{ localStorage.setItem('gs_dashboard_raw', JSON.stringify(rawRows)); }catch(e){}
       document.getElementById('rowsCount').textContent = rawRows.length;
       normalized = normalizeClient(rawRows);
       populateFilters(normalized);
       drawAllCharts();
       setLoader('Ready (live)');
-    }).withFailureHandler(err => {
-      stopSeconds();
-      disableButtons(false);
-      setLoader('Error: ' + err);
+    }).withFailureHandler(err=>{
+      stopSeconds(); disableButtons(false); setLoader('Error: '+err);
     }).getSalesData_vC();
-  } else {
-    setLoader('Live fetch unavailable');
-    alert('Live fetch unavailable. Make sure the small opener dialog is still open in the Sheets window.');
-  }
+  } else { setLoader('Live fetch unavailable'); alert('Live fetch unavailable.'); }
 }
 
-function loadInitialData() {
+function loadInitialData(){
   const cached = localStorage.getItem('gs_dashboard_raw');
-  if (cached) {
-    try {
-      rawRows = JSON.parse(cached);
-      document.getElementById('rowsCount').textContent = rawRows.length;
-      normalized = normalizeClient(rawRows);
-      populateFilters(normalized);
-      drawAllCharts();
-      setLoader('Ready (cached)');
-      return;
-    } catch(e){}
-  }
-  if (typeof INITIAL_RAW !== 'undefined' && INITIAL_RAW && INITIAL_RAW.length) {
-    rawRows = INITIAL_RAW;
-    try { localStorage.setItem('gs_dashboard_raw', JSON.stringify(rawRows)); } catch(e){}
-    document.getElementById('rowsCount').textContent = rawRows.length;
-    normalized = normalizeClient(rawRows);
-    populateFilters(normalized);
-    drawAllCharts();
-    setLoader('Ready (server snapshot)');
-    return;
-  }
-  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
-    refreshLive();
-    return;
-  }
+  if(cached){ try{ rawRows=JSON.parse(cached); document.getElementById('rowsCount').textContent = rawRows.length; normalized=normalizeClient(rawRows); populateFilters(normalized); drawAllCharts(); setLoader('Ready (cached)'); return;}catch(e){} }
+  if(typeof INITIAL_RAW!=='undefined' && INITIAL_RAW && INITIAL_RAW.length){ rawRows=INITIAL_RAW; try{localStorage.setItem('gs_dashboard_raw',JSON.stringify(rawRows));}catch(e){} document.getElementById('rowsCount').textContent=rawRows.length; normalized=normalizeClient(rawRows); populateFilters(normalized); drawAllCharts(); setLoader('Ready (server snapshot)'); return;}
   setLoader('No data available');
 }
 
-function normalizeClient(rows) {
-  if (!rows || !rows.length) return [];
-  const headers = rows[0].map(h => String(h || '').trim());
-  const out = [];
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const obj = {};
-    headers.forEach((h, c) => obj[h] = row[c]);
-    const sales = Number(String(obj.SALES || 0).replace(/,/g, '')) || 0;
-    const order = Number(String(obj.ORDERNUMBER || 0).replace(/\D/g, '')) || 0;
-    if (sales > 0 && order > 0) {
-      obj.SALES = sales;
-      obj.ORDERNUMBER = order;
-      out.push(obj);
-    }
+function normalizeClient(rows){
+  if(!rows||!rows.length) return [];
+  const headers = rows[0].map(h=>String(h||'').trim());
+  const out=[];
+  for(let i=1;i<rows.length;i++){
+    const row=rows[i], obj={};
+    headers.forEach((h,c)=>obj[h]=row[c]);
+    const sales=Number(String(obj.SALES||0).replace(/,/g,''))||0;
+    const order=Number(String(obj.ORDERNUMBER||0).replace(/\D/g,''))||0;
+    if(sales>0 && order>0){ obj.SALES=sales; obj.ORDERNUMBER=order; out.push(obj); }
   }
   return out;
 }
 
-function populateFilters(data) {
-  const yearSet = new Set();
-  const productSet = new Set();
-  data.forEach(r => { if (r.YEAR_ID) yearSet.add(String(r.YEAR_ID)); if (r.PRODUCTLINE) productSet.add(r.PRODUCTLINE); });
-  const yearSel = document.getElementById('yearFilter');
-  const prodSel = document.getElementById('productFilter');
-  const currentYear = yearSel.value;
-  const currentProd = prodSel.value;
-  yearSel.innerHTML = '<option value="">All</option>';
-  Array.from(yearSet).sort().forEach(y => { const opt = document.createElement('option'); opt.value = y; opt.text = y; yearSel.appendChild(opt); });
-  if (Array.from(yearSet).includes(currentYear)) yearSel.value = currentYear;
-  prodSel.innerHTML = '<option value="">All</option>';
-  Array.from(productSet).sort().forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.text = p; prodSel.appendChild(opt); });
-  if (Array.from(productSet).includes(currentProd)) prodSel.value = currentProd;
+function populateFilters(data){
+  const yearSet=new Set(), productSet=new Set();
+  data.forEach(r=>{ if(r.YEAR_ID) yearSet.add(String(r.YEAR_ID)); if(r.PRODUCTLINE) productSet.add(r.PRODUCTLINE); });
+  const yearSel=document.getElementById('yearFilter'), prodSel=document.getElementById('productFilter');
+  const currentYear=yearSel.value, currentProd=prodSel.value;
+  yearSel.innerHTML='<option value="">All</option>'; Array.from(yearSet).sort().forEach(y=>{const opt=document.createElement('option'); opt.value=y; opt.text=y; yearSel.appendChild(opt);});
+  if(Array.from(yearSet).includes(currentYear)) yearSel.value=currentYear;
+  prodSel.innerHTML='<option value="">All</option>'; Array.from(productSet).sort().forEach(p=>{const opt=document.createElement('option'); opt.value=p; opt.text=p; prodSel.appendChild(opt);});
+  if(Array.from(productSet).includes(currentProd)) prodSel.value=currentProd;
 }
 
-function filterData() {
-  const year = document.getElementById('yearFilter').value;
-  const product = document.getElementById('productFilter').value;
-  return normalized.filter(r => {
-    const matchYear = !year || String(r.YEAR_ID) === year;
-    const matchProd = !product || r.PRODUCTLINE === product;
-    return matchYear && matchProd;
+function filterData(){
+  const year=document.getElementById('yearFilter').value, product=document.getElementById('productFilter').value;
+  return normalized.filter(r=>(!year||String(r.YEAR_ID)===year)&&(!product||r.PRODUCTLINE===product));
+}
+
+function drawAllCharts(){ const data=filterData(); drawKpis(data); drawProductPie(data); drawMonthLine(data); drawTopCustomers(data); }
+
+function drawKpis(data){ const totalSales=data.reduce((s,r)=>s+Number(r.SALES||0),0); const totalOrders=new Set(data.map(r=>String(r.ORDERNUMBER))).size; const aov=totalOrders?totalSales/totalOrders:0; document.getElementById('kpiSales').textContent='$'+totalSales.toLocaleString(); document.getElementById('kpiOrders').textContent=totalOrders; document.getElementById('kpiAov').textContent='$'+aov.toFixed(2); }
+
+function drawProductPie(data){ const map={}; data.forEach(r=>{const k=r.PRODUCTLINE||'UNKNOWN'; map[k]=(map[k]||0)+Number(r.SALES||0);}); const arr=[['Product','Sales']]; Object.keys(map).forEach(k=>arr.push([k,map[k]])); const dt=google.visualization.arrayToDataTable(arr); const chart=new google.visualization.PieChart(document.getElementById('chartProduct')); chart.draw(dt,{title:'',pieHole:0.36,chartArea:{left:20,top:30,width:'85%',height:'80%'}}); }
+
+function drawMonthLine(data){ const map={}; data.forEach(r=>{const m=String(r.YEAR_ID||'')+'-'+String((r.MONTH_ID||'').toString().padStart(2,'0')); map[m]=(map[m]||0)+Number(r.SALES||0);}); const arr=[['Month','Sales']]; Object.keys(map).sort().forEach(k=>arr.push([k,map[k]])); if(arr.length===1) arr.push(['No data',0]); const dt=google.visualization.arrayToDataTable(arr); const chart=new google.visualization.LineChart(document.getElementById('chartMonth')); chart.draw(dt,{title:'',pointSize:4,chartArea:{left:60,top:30,width:'85%',height:'70%'}}); }
+
+function drawTopCustomers(data){ const map={}; data.forEach(r=>{const k=r.CUSTOMERNAME||'Unknown'; map[k]=(map[k]||0)+Number(r.SALES||0);}); const items=Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,10); const arr=[['Customer','Sales']]; items.forEach(i=>arr.push([i[0],i[1]])); const dt=google.visualization.arrayToDataTable(arr); const chart=new google.visualization.BarChart(document.getElementById('chartCustomers')); chart.draw(dt,{title:'',chartArea:{left:160,top:20,width:'70%',height:'70%'},legend:{position:'none'}}); }
+
+function setupAutoRefresh(){ const val=Number(document.getElementById('autoRefresh').value)||0; if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;} if(val>0){refreshTimer=setInterval(refreshLive,val*1000);} }
+
+function startSeconds(){ if(secondsTimer) clearInterval(secondsTimer); secondCount=0; secondsTimer=setInterval(tickSeconds,1000); }
+function stopSeconds(){ if(secondsTimer) clearInterval(secondsTimer); secondsTimer=null; }
+function disableButtons(disabled){ document.getElementById('refreshBtn').disabled=disabled; document.getElementById('exportBtn').disabled=disabled; document.getElementById('debugBtn').disabled=disabled; }
+
+function exportPdf(){ disableButtons(true); setLoader('Exporting PDF...'); window.google.script.run.withSuccessHandler(res=>{ disableButtons(false); setLoader(res&&res.success?'PDF exported to Drive':'Export error: '+(res&&res.error?'':res.error));}).withFailureHandler(err=>{ disableButtons(false); setLoader('Export error: '+err); }).exportDataSheetToPDF(); }
+
+function runDebug(){ setLoader('Running debug...'); window.google.script.run.withSuccessHandler(res=>{ setLoader(res&&res.error?'Debug error: '+res.error:'Debug completed: rows loaded='+res.rowsLoaded); }).withFailureHandler(err=>{ setLoader('Debug failed: '+err); }).debugSalesPipeline(); }
+
+function openModalForChart(key){
+  const modal=document.getElementById('modalOverlay');
+  const titleMap={product:'Sales by Product Line',month:'Sales by Month',customers:'Top 10 Customers'};
+  document.getElementById('modalTitle').textContent=titleMap[key]||'Chart';
+  document.getElementById('modalBody').innerHTML='<div id="fullChart" style="width:100%;height:100%"></div>';
+  modal.style.display='flex';
+  google.charts.setOnLoadCallback(()=>{
+    const data=filterData();
+    if(key==='product') drawProductPieFull(data);
+    else if(key==='month') drawMonthLineFull(data);
+    else if(key==='customers') drawTopCustomersFull(data);
   });
 }
 
-function drawAllCharts() {
-  const data = filterData();
-  drawKpis(data);
-  drawProductPie(data);
-  drawMonthLine(data);
-  drawTopCustomers(data);
-}
+function closeModal(){ const modal=document.getElementById('modalOverlay'); modal.style.display='none'; document.getElementById('modalBody').innerHTML=''; }
 
-function drawKpis(data) {
-  const totalSales = data.reduce((s, r) => s + (Number(r.SALES) || 0), 0);
-  const totalOrders = new Set(data.map(r => String(r.ORDERNUMBER))).size;
-  const aov = totalOrders ? (totalSales / totalOrders) : 0;
-  document.getElementById('kpiSales').textContent = '$' + totalSales.toLocaleString();
-  document.getElementById('kpiOrders').textContent = totalOrders;
-  document.getElementById('kpiAov').textContent = '$' + aov.toFixed(2);
-}
+function drawProductPieFull(data){ const map={}; data.forEach(r=>{const k=r.PRODUCTLINE||'UNKNOWN'; map[k]=(map[k]||0)+Number(r.SALES||0);}); const arr=[['Product','Sales']]; Object.keys(map).forEach(k=>arr.push([k,map[k]])); const dt=google.visualization.arrayToDataTable(arr); const chart=new google.visualization.PieChart(document.getElementById('fullChart')); chart.draw(dt,{title:'',pieHole:0.36,chartArea:{left:40,top:30,width:'90%',height:'85%'},legend:{position:'right'}}); }
 
-function drawProductPie(data) {
-  const map = {};
-  data.forEach(r => { const k = r.PRODUCTLINE || 'UNKNOWN'; map[k] = (map[k] || 0) + Number(r.SALES || 0); });
-  const arr = [['Product', 'Sales']];
-  Object.keys(map).forEach(k => arr.push([k, map[k]]));
-  const dt = google.visualization.arrayToDataTable(arr);
-  const chart = new google.visualization.PieChart(document.getElementById('chartProduct'));
-  chart.draw(dt, { title: '', pieHole: 0.36, chartArea: { left: 20, top: 30, width: '85%', height: '80%' } });
-}
+function drawMonthLineFull(data){ const map={}; data.forEach(r=>{const m=String(r.YEAR_ID||'')+'-'+String((r.MONTH_ID||'').toString().padStart(2,'0')); map[m]=(map[m]||0)+Number(r.SALES||0);}); const arr=[['Month','Sales']]; Object.keys(map).sort().forEach(k=>arr.push([k,map[k]])); if(arr.length===1) arr.push(['No data',0]); const dt=google.visualization.arrayToDataTable(arr); const chart=new google.visualization.LineChart(document.getElementById('fullChart')); chart.draw(dt,{title:'',pointSize:4,chartArea:{left:60,top:40,width:'85%',height:'75%'}}); }
 
-function drawMonthLine(data) {
-  const map = {};
-  data.forEach(r => {
-    const m = String(r.YEAR_ID || '') + '-' + String((r.MONTH_ID || '').toString().padStart(2, '0'));
-    map[m] = (map[m] || 0) + Number(r.SALES || 0);
-  });
-  const arr = [['Month', 'Sales']];
-  Object.keys(map).sort().forEach(k => arr.push([k, map[k]]));
-  if (arr.length === 1) arr.push(['No data', 0]);
-  const dt = google.visualization.arrayToDataTable(arr);
-  const chart = new google.visualization.LineChart(document.getElementById('chartMonth'));
-  chart.draw(dt, { title: '', pointSize: 4, chartArea: { left: 60, top: 30, width: '85%', height: '70%' } });
-}
+function drawTopCustomersFull(data){ const map={}; data.forEach(r=>{const k=r.CUSTOMERNAME||'Unknown'; map[k]=(map[k]||0)+Number(r.SALES||0);}); const items=Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,20); const arr=[['Customer','Sales']]; items.forEach(i=>arr.push([i[0],i[1]])); const dt=google.visualization.arrayToDataTable(arr); const chart=new google.visualization.BarChart(document.getElementById('fullChart')); chart.draw(dt,{title:'',chartArea:{left:160,top:20,width:'70%',height:'75%'},legend:{position:'none'}}); }
 
-function drawTopCustomers(data) {
-  const map = {};
-  data.forEach(r => { const k = r.CUSTOMERNAME || 'Unknown'; map[k] = (map[k] || 0) + Number(r.SALES || 0); });
-  const items = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  const arr = [['Customer', 'Sales']];
-  items.forEach(i => arr.push([i[0], i[1]]));
-  const dt = google.visualization.arrayToDataTable(arr);
-  const chart = new google.visualization.BarChart(document.getElementById('chartCustomers'));
-  chart.draw(dt, { title: '', chartArea: { left: 160, top: 20, width: '70%', height: '70%' }, legend: { position: 'none' } });
-}
-
-function setupAutoRefresh() {
-  const val = Number(document.getElementById('autoRefresh').value) || 0;
-  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
-  if (val > 0) { refreshTimer = setInterval(() => { refreshLive(); }, val * 1000); }
-}
-
-function startSeconds() {
-  if (secondsTimer) clearInterval(secondsTimer);
-  secondCount = 0;
-  secondsTimer = setInterval(tickSeconds, 1000);
-}
-
-function stopSeconds() {
-  if (secondsTimer) clearInterval(secondsTimer);
-  secondsTimer = null;
-}
-
-function disableButtons(disabled) {
-  document.getElementById('refreshBtn').disabled = disabled;
-  document.getElementById('exportBtn').disabled = disabled;
-  document.getElementById('debugBtn').disabled = disabled;
-}
-
-function exportPdf() {
-  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
-    disableButtons(true);
-    setLoader('Exporting PDF...');
-    window.opener.google.script.run.withSuccessHandler(res => {
-      disableButtons(false);
-      if (res && res.success) setLoader('PDF exported to Drive');
-      else setLoader('Export error: ' + (res && res.error ? res.error : 'unknown'));
-    }).withFailureHandler(err => {
-      disableButtons(false);
-      setLoader('Export error: ' + err);
-    }).exportDataSheetToPDF();
-  } else {
-    alert('Export unavailable. Keep the small opener dialog open in the Sheets window and try again.');
-  }
-}
-
-function runDebug() {
-  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
-    setLoader('Running debug on server...');
-    window.opener.google.script.run.withSuccessHandler(res => {
-      if (res && res.error) setLoader('Debug error: ' + res.error);
-      else setLoader('Debug completed: rows loaded=' + (res && res.rowsLoaded ? res.rowsLoaded : 'unknown'));
-    }).withFailureHandler(err => {
-      setLoader('Debug failed: ' + err);
-    }).debugSalesPipeline();
-  } else {
-    alert('Debug unavailable. Keep the small opener dialog open in the Sheets window and try again.');
-  }
-}
-
-function openModalForChart(key) {
-  const modal = document.getElementById('modalOverlay');
-  const title = { product: 'Sales by Product Line', month: 'Sales by Month', customers: 'Top 10 Customers' }[key] || 'Chart';
-  document.getElementById('modalTitle').textContent = title;
-  document.getElementById('modalBody').innerHTML = '<div id="fullChart" style="width:100%;height:100%"></div>';
-  modal.style.display = 'flex';
-  google.charts.setOnLoadCallback(() => {
-    const data = filterData();
-    if (key === 'product') drawProductPieFull(data);
-    else if (key === 'month') drawMonthLineFull(data);
-    else if (key === 'customers') drawTopCustomersFull(data);
-  });
-}
-
-function closeModal() {
-  const modal = document.getElementById('modalOverlay');
-  modal.style.display = 'none';
-  document.getElementById('modalBody').innerHTML = '';
-}
-
-function drawProductPieFull(data) {
-  const map = {};
-  data.forEach(r => { const k = r.PRODUCTLINE || 'UNKNOWN'; map[k] = (map[k] || 0) + Number(r.SALES || 0); });
-  const arr = [['Product', 'Sales']];
-  Object.keys(map).forEach(k => arr.push([k, map[k]]));
-  const dt = google.visualization.arrayToDataTable(arr);
-  const chart = new google.visualization.PieChart(document.getElementById('fullChart'));
-  chart.draw(dt, { title: '', pieHole: 0.36, chartArea: { left: 40, top: 30, width: '90%', height: '85%' }, legend: { position: 'right' } });
-}
-
-function drawMonthLineFull(data) {
-  const map = {};
-  data.forEach(r => {
-    const m = String(r.YEAR_ID || '') + '-' + String((r.MONTH_ID || '').toString().padStart(2, '0'));
-    map[m] = (map[m] || 0) + Number(r.SALES || 0);
-  });
-  const arr = [['Month', 'Sales']];
-  Object.keys(map).sort().forEach(k => arr.push([k, map[k]]));
-  if (arr.length === 1) arr.push(['No data', 0]);
-  const dt = google.visualization.arrayToDataTable(arr);
-  const chart = new google.visualization.LineChart(document.getElementById('fullChart'));
-  chart.draw(dt, { title: '', pointSize: 6, chartArea: { left: 80, top: 40, width: '85%', height: '75%' } });
-}
-
-function drawTopCustomersFull(data) {
-  const map = {};
-  data.forEach(r => { const k = r.CUSTOMERNAME || 'Unknown'; map[k] = (map[k] || 0) + Number(r.SALES || 0); });
-  const items = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 20);
-  const arr = [['Customer', 'Sales']];
-  items.forEach(i => arr.push([i[0], i[1]]));
-  const dt = google.visualization.arrayToDataTable(arr);
-  const chart = new google.visualization.BarChart(document.getElementById('fullChart'));
-  chart.draw(dt, { title: '', chartArea: { left: 200, top: 20, width: '70%', height: '80%' }, legend: { position: 'none' } });
-}
-
-google.charts.setOnLoadCallback(loadInitialData);
-</script>
-
-<script>
-const INITIAL_RAW = <?!= INITIAL_RAW ?>;
+loadInitialData();
+setupAutoRefresh();
 </script>
 </body>
 </html>
