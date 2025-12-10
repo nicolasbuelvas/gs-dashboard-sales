@@ -1,3 +1,7 @@
+/**
+ * SALES DASHBOARD – Web App version
+ */
+
 const SHEET_NAME = "sales_data_sample";
 const SPREADSHEET_ID = SpreadsheetApp.getActive().getId();
 
@@ -11,35 +15,38 @@ const EXPECTED_HEADERS = [
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Sales Dashboard")
-    .addItem("Open Dashboard", "showDashboard")
+    .addItem("Open Dashboard", "openDashboardWebApp")
     .addToUi();
 }
 
-function showDashboard() {
-  const html = HtmlService.createHtmlOutput(
-    '<html><head><base target="_top"></head><body>' +
-    '<script>' +
-    'google.script.run.withSuccessHandler(function(html){' +
-    '  try{' +
-    '    var w = window.open("about:blank","_blank");' +
-    '    w.document.open();' +
-    '    w.document.write(html);' +
-    '    w.document.close();' +
-    '  }catch(e){' +
-    '    alert("Unable to open new tab. Please allow popups for this site.");' +
-    '  }' +
-    '}).getFullscreenHTML();' +
-    '</script>' +
-    '</body></html>'
-  ).setWidth(200).setHeight(80);
-  SpreadsheetApp.getUi().showModelessDialog(html, "Opening Dashboard");
+function openDashboardWebApp() {
+  const url = getWebAppUrl();
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(
+      `<html>
+        <body style="font-family:Arial;padding:20px;">
+          <p>Opening dashboard...</p>
+          <script>window.open("${url}", "_blank");google.script.host.close();</script>
+        </body>
+      </html>`
+    ).setWidth(200).setHeight(80),
+    "Opening"
+  );
 }
 
-function getFullscreenHTML() {
+function getWebAppUrl() {
+  return "https://script.google.com/macros/s/AKfycbwsfCBO2tuBYCZT01_bYhiZCliewV98M4nw4pkA-uQDu7_4DfZE52fUiJ9f9LBTeWvg/exec";
+}
+
+function doGet() {
   const dataResp = getSalesData_vC();
+
   const t = HtmlService.createTemplateFromFile('Ui');
   t.INITIAL_RAW = JSON.stringify(dataResp.raw || []);
-  return t.evaluate().getContent();
+
+  return t.evaluate()
+    .setTitle("Sales Dashboard")
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function getSalesData_vC() {
@@ -56,8 +63,10 @@ function exportDataSheetToPDF() {
     const ss = SpreadsheetApp.getActive();
     const sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) throw new Error("Sheet not found: " + SHEET_NAME);
+
     const fileId = ss.getId();
     const sheetId = sheet.getSheetId();
+
     const exportUrl =
       "https://docs.google.com/spreadsheets/d/" +
       fileId +
@@ -72,21 +81,26 @@ function exportDataSheetToPDF() {
       "&gridlines=true" +
       "&fzr=false" +
       "&gid=" + sheetId;
+
     const token = ScriptApp.getOAuthToken();
     const response = UrlFetchApp.fetch(exportUrl, {
       headers: { Authorization: "Bearer " + token },
       muteHttpExceptions: true
     });
+
     const blob = response.getBlob().setName(
       ss.getName() + " - " + SHEET_NAME + ".pdf"
     );
+
     const parents = DriveApp.getFileById(fileId).getParents();
     if (parents.hasNext()) {
       parents.next().createFile(blob);
     } else {
       DriveApp.createFile(blob);
     }
+
     return { success: true };
+
   } catch (e) {
     return { error: String(e) };
   }
@@ -96,10 +110,13 @@ function debugSalesPipeline() {
   const ss = SpreadsheetApp.getActive();
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) return { error: "Sheet not found: " + SHEET_NAME };
+
   const rows = sheet.getDataRange().getValues();
   const headers = rows[0].map(h => String(h ?? "").trim());
+
   const missing = EXPECTED_HEADERS.filter(h => !headers.includes(h));
   const sample = normalizeRowsInMemory_debug(rows.slice(0, 51));
+
   return {
     rowsLoaded: rows.length,
     normalizedSampleCount: sample.length,
@@ -111,14 +128,18 @@ function normalizeRowsInMemory_debug(rows) {
   const headers = rows[0].map(h => String(h ?? "").trim());
   const idx = {};
   headers.forEach((h, i) => idx[h] = i);
+
   const out = [];
+
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
     const temp = {};
     let valSales = 0;
     let valOrder = 0;
+
     EXPECTED_HEADERS.forEach(h => {
       let v = idx.hasOwnProperty(h) ? row[idx[h]] : "";
+
       if (["PRICEEACH","SALES","MSRP"].includes(h)) {
         const num = parseFloat(String(v).replace(/\./g, "").replace(",", "."));
         temp[h] = isNaN(num) ? 0 : num;
@@ -141,7 +162,9 @@ function normalizeRowsInMemory_debug(rows) {
       }
       else temp[h] = String(v).trim();
     });
+
     if (valSales > 0 && valOrder > 0) out.push(temp);
   }
+
   return out;
 }
