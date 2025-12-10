@@ -1,8 +1,3 @@
-/**
- * SALES DASHBOARD (Sheets API)
- * Google Sheets + Apps Script
- */
-
 const SHEET_NAME = "sales_data_sample";
 const SPREADSHEET_ID = SpreadsheetApp.getActive().getId();
 
@@ -21,23 +16,37 @@ function onOpen() {
 }
 
 function showDashboard() {
-  const html = HtmlService.createTemplateFromFile("Ui")
-    .evaluate()
-    .setWidth(900)
-    .setTitle("Sales Dashboard");
-  SpreadsheetApp.getUi().showSidebar(html);
+  const html = HtmlService.createHtmlOutput(
+    '<html><head><base target="_top"></head><body>' +
+    '<script>' +
+    'google.script.run.withSuccessHandler(function(html){' +
+    '  try{' +
+    '    var w = window.open("about:blank","_blank");' +
+    '    w.document.open();' +
+    '    w.document.write(html);' +
+    '    w.document.close();' +
+    '  }catch(e){' +
+    '    alert("Unable to open new tab. Please allow popups for this site.");' +
+    '  }' +
+    '  try{ google.script.host.close(); }catch(e){}' +
+    '}).getFullscreenHTML();' +
+    '</script>' +
+    '</body></html>'
+  ).setWidth(200).setHeight(80);
+  SpreadsheetApp.getUi().showModelessDialog(html, "Opening Dashboard");
 }
 
 function getFullscreenHTML() {
-  return HtmlService.createTemplateFromFile("Ui").evaluate().getContent();
+  const dataResp = getSalesData_vC();
+  const t = HtmlService.createTemplateFromFile('Ui');
+  t.INITIAL_RAW = JSON.stringify(dataResp.raw || []);
+  return t.evaluate().getContent();
 }
 
 function getSalesData_vC() {
   try {
-    const range = SHEET_NAME;
-    const resp = Sheets.Spreadsheets.Values.get(SPREADSHEET_ID, range);
-    const rows = resp.values || [];
-    return { raw: rows };
+    const resp = Sheets.Spreadsheets.Values.get(SPREADSHEET_ID, SHEET_NAME);
+    return { raw: resp.values || [] };
   } catch (e) {
     return { error: String(e), raw: [] };
   }
@@ -48,152 +57,103 @@ function exportDataSheetToPDF() {
     const ss = SpreadsheetApp.getActive();
     const sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) throw new Error("Sheet not found: " + SHEET_NAME);
-
-    const url = ss.getUrl();
-    const exportUrl = url.replace(/\/edit.*$/, '') +
-      'export?format=pdf' +
-      '&gid=' + sheet.getSheetId() +
-      '&size=letter' +
-      '&portrait=true' +
-      '&fitw=true' +
-      '&sheetnames=false&printtitle=false&pagenumbers=false' +
-      '&gridlines=true&fzr=false';
-
+    const fileId = ss.getId();
+    const sheetId = sheet.getSheetId();
+    const exportUrl =
+      "https://docs.google.com/spreadsheets/d/" +
+      fileId +
+      "/export" +
+      "?format=pdf" +
+      "&portrait=true" +
+      "&size=letter" +
+      "&fitw=true" +
+      "&sheetnames=false" +
+      "&printtitle=false" +
+      "&pagenumbers=false" +
+      "&gridlines=true" +
+      "&fzr=false" +
+      "&gid=" + sheetId;
     const token = ScriptApp.getOAuthToken();
     const response = UrlFetchApp.fetch(exportUrl, {
-      headers: { Authorization: 'Bearer ' + token }
+      headers: { Authorization: "Bearer " + token },
+      muteHttpExceptions: true
     });
-
-    const blob = response.getBlob().setName(ss.getName() + ' - ' + SHEET_NAME + '.pdf');
-
-    try {
-      const file = DriveApp.getFileById(ss.getId());
-      const parents = file.getParents();
-      if (parents.hasNext()) {
-        const folder = parents.next();
-        folder.createFile(blob);
-      } else {
-        DriveApp.createFile(blob);
-      }
-    } catch (e) {
+    const blob = response.getBlob().setName(
+      ss.getName() + " - " + SHEET_NAME + ".pdf"
+    );
+    const parents = DriveApp.getFileById(fileId).getParents();
+    if (parents.hasNext()) {
+      parents.next().createFile(blob);
+    } else {
       DriveApp.createFile(blob);
     }
-
     return { success: true };
   } catch (e) {
     return { error: String(e) };
   }
 }
 
-/* Debug pipeline - server-side checks and normalization trace */
 function debugSalesPipeline() {
-  const log = msg => Logger.log(msg);
-
-  log("START DEBUG PIPELINE");
-
   const ss = SpreadsheetApp.getActive();
   const sheet = ss.getSheetByName(SHEET_NAME);
-
-  if (!sheet) {
-    log("Sheet not found: " + SHEET_NAME);
-    return { error: "Sheet not found: " + SHEET_NAME };
-  }
-  log("Sheet found");
-
-  let rows;
-  try {
-    rows = sheet.getDataRange().getValues();
-    log("Rows loaded: " + rows.length);
-  } catch (e) {
-    log("Error reading sheet: " + e);
-    return { error: String(e) };
-  }
-
-  const rawHeaders = rows[0].map(h => String(h ?? "").trim());
-  log("Headers: " + JSON.stringify(rawHeaders));
-
-  const missing = EXPECTED_HEADERS.filter(h => !rawHeaders.includes(h));
-  if (missing.length) {
-    log("Missing headers: " + missing.join(", "));
-  } else {
-    log("All expected headers present.");
-  }
-
-  log("Normalizing sample rows (first 50 rows) for inspection");
-  const sampleRows = rows.slice(0, 51); // header + up to 50 rows
-  const normalizedSample = normalizeRowsInMemory_debug(sampleRows);
-  log("Normalized sample count: " + normalizedSample.length);
-
-  log("END DEBUG PIPELINE");
-  return { rowsLoaded: rows.length, normalizedSampleCount: normalizedSample.length, missingHeaders: missing };
+  if (!sheet) return { error: "Sheet not found: " + SHEET_NAME };
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0].map(h => String(h ?? "").trim());
+  const missing = EXPECTED_HEADERS.filter(h => !headers.includes(h));
+  const sample = normalizeRowsInMemory_debug(rows.slice(0, 51));
+  return {
+    rowsLoaded: rows.length,
+    normalizedSampleCount: sample.length,
+    missingHeaders: missing
+  };
 }
 
 function normalizeRowsInMemory_debug(rows) {
-  const log = msg => Logger.log(msg);
-
-  const rawHeaders = rows[0].map(h => String(h ?? "").trim());
-  const idxMap = {};
-  rawHeaders.forEach((h, i) => idxMap[h] = i);
-
-  log("Index map: " + JSON.stringify(idxMap));
-
+  const headers = rows[0].map(h => String(h ?? "").trim());
+  const idx = {};
+  headers.forEach((h, i) => idx[h] = i);
   const out = [];
-
   for (let r = 1; r < rows.length; r++) {
-    log("Processing row " + r);
-
     const row = rows[r];
     const temp = {};
-    let validSales = 0;
-    let validOrder = 0;
-
+    let valSales = 0;
+    let valOrder = 0;
     EXPECTED_HEADERS.forEach(h => {
-      let val = "";
-
-      if (idxMap.hasOwnProperty(h)) {
-        val = row[idxMap[h]];
-      } else {
-        for (const k in idxMap) {
-          if (k.toUpperCase().replace(/\s+/g, "") === h) {
-            val = row[idxMap[k]];
-            break;
-          }
-        }
-      }
-
+      let v = idx.hasOwnProperty(h) ? row[idx[h]] : "";
       if (["PRICEEACH","SALES","MSRP"].includes(h)) {
-        let s = String(val).replace(/\./g, "").replace(",", ".");
-        const num = parseFloat(s);
+        const num = parseFloat(String(v).replace(/\./g, "").replace(",", "."));
         temp[h] = isNaN(num) ? 0 : num;
-        if (h === "SALES") validSales = temp[h];
+        if (h === "SALES") valSales = temp[h];
       }
       else if (["ORDERNUMBER","QUANTITYORDERED","ORDERLINENUMBER","QTR_ID","MONTH_ID","YEAR_ID"].includes(h)) {
-        const num = parseInt(String(val).replace(/\D/g, ""), 10);
+        const num = parseInt(String(v).replace(/\D/g, ""), 10);
         temp[h] = isNaN(num) ? 0 : num;
-        if (h === "ORDERNUMBER") validOrder = temp[h];
+        if (h === "ORDERNUMBER") valOrder = temp[h];
       }
       else if (h === "ORDERDATE") {
-        if (val instanceof Date) temp[h] = val;
+        if (v instanceof Date) temp[h] = v;
         else {
-          const p = String(val).split(" ")[0]?.split("/") || [];
+          const p = String(v).split(" ")[0].split("/");
           if (p.length === 3) {
-            const d = new Date(+p[2], p[1]-1, +p[0]);
+            const d = new Date(+p[2], p[1] - 1, +p[0]);
             temp[h] = isNaN(d) ? "" : d;
           } else temp[h] = "";
         }
       }
-      else {
-        temp[h] = String(val).trim();
-      }
+      else temp[h] = String(v).trim();
     });
-
-    if (validSales > 0 && validOrder > 0) {
-      out.push(temp);
-      log("Added");
-    } else {
-      log("Discarded");
-    }
+    if (valSales > 0 && valOrder > 0) out.push(temp);
   }
-
   return out;
+}
+
+function onEdit(e) {
+  try {
+    PropertiesService.getScriptProperties().setProperty('dashboardRefreshTS', Date.now().toString());
+  } catch (err) {
+  }
+}
+
+function getDashboardRefreshTS() {
+  return PropertiesService.getScriptProperties().getProperty('dashboardRefreshTS') || null;
 }

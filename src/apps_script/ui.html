@@ -6,103 +6,111 @@
 <title>Sales Dashboard</title>
 <script src="https://www.gstatic.com/charts/loader.js"></script>
 <style>
-  :root{
-    --bg:#f6f9fc; --card:#fff; --accent:#1a73e8; --muted:#6b7280;
-    --glass: rgba(16,24,40,0.04);
-  }
-  html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:#0b1220}
-  header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px}
-  h1{margin:0;font-size:18px;color:var(--accent)}
-  .controls{display:flex;gap:8px;align-items:center}
-  button{border:0;border-radius:8px;padding:8px 12px;cursor:pointer;background:var(--accent);color:#fff;font-weight:600}
-  .secondary{background:#374151;color:#fff;padding:8px 12px;border-radius:8px}
-  .container{padding:0 24px 24px}
-  .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 8px 24px var(--glass);margin-bottom:16px}
-  .top-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
-  .kpi{flex:1;min-width:160px;background:#fff;border-radius:10px;padding:12px;text-align:center;box-shadow:0 4px 12px rgba(2,6,23,0.04)}
-  .kpi .label{font-size:12px;color:var(--muted)}
-  .kpi .value{font-size:20px;color:var(--accent);font-weight:700;margin-top:6px}
-  .filters{display:flex;gap:12px;align-items:center}
-  select{padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#fff}
-  #loader{font-size:14px;color:var(--muted)}
-  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .chart-card{background:#fff;border-radius:10px;padding:12px;min-height:320px;box-shadow:0 6px 18px rgba(2,6,23,0.04)}
-  .small-row{display:flex;gap:12px;align-items:center;justify-content:flex-end}
-  .muted{color:var(--muted)}
-  footer{padding:12px 24px;font-size:13px;color:var(--muted)}
-  @media(max-width:900px){ .charts-grid{grid-template-columns:1fr} .top-row{flex-direction:column;align-items:stretch} .kpi{width:100%} }
+:root{--bg:#f6f9fc;--card:#fff;--accent:#1a73e8;--muted:#6b7280;--glass:rgba(16,24,40,0.04)}
+html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:#0b1220}
+.container{max-width:1200px;margin:20px auto;padding:20px}
+.header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+.title{font-size:20px;color:var(--accent);font-weight:700}
+.controls{display:flex;gap:8px;align-items:center}
+.btn{border:0;border-radius:8px;padding:8px 14px;cursor:pointer;background:var(--accent);color:#fff;font-weight:600}
+.btn.secondary{background:#374151}
+.card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 8px 24px var(--glass);margin-bottom:16px}
+.top-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.kpis{display:flex;gap:12px;flex:1;flex-wrap:wrap}
+.kpi{min-width:200px;background:#fff;border-radius:10px;padding:16px;text-align:left;box-shadow:0 4px 12px rgba(2,6,23,0.04)}
+.kpi .label{font-size:12px;color:var(--muted);margin-bottom:6px}
+.kpi .value{font-size:22px;color:var(--accent);font-weight:700}
+.filters{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+select,input{padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#fff}
+.info-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.small{font-size:13px;color:var(--muted)}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+.chart-card{background:#fff;border-radius:10px;padding:12px;min-height:340px;box-shadow:0 6px 18px rgba(2,6,23,0.04);display:flex;flex-direction:column}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.chart-body{flex:1;display:flex;align-items:center;justify-content:center}
+.preview{width:100%;height:320px;display:block}
+.expand-btn{background:transparent;border:1px solid #eaecef;padding:6px 10px;border-radius:8px;cursor:pointer}
+.footer{padding:12px 0;font-size:13px;color:var(--muted);text-align:center}
+@media(max-width:980px){.charts-grid{grid-template-columns:1fr}.kpi{width:100%}.container{padding:12px}}
+.modal-overlay{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:none;align-items:center;justify-content:center;z-index:9999}
+.modal{background:#fff;border-radius:8px;padding:18px;width:90%;max-width:1100px;max-height:90vh;overflow:auto}
+.modal .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.modal .modal-body{height:70vh}
 </style>
 </head>
 <body>
-<header>
-  <h1>Sales Dashboard</h1>
-  <div class="controls">
-    <button id="analyzeBtn">Analyze</button>
-    <button id="exportBtn" class="secondary">Export PDF</button>
-  </div>
-</header>
-
 <div class="container">
-  <div class="card top-row">
-    <div style="flex:1">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="filters">
-          <label class="muted">Year</label>
-          <select id="yearFilter"><option value="">All</option></select>
-          <label class="muted">Product</label>
-          <select id="productFilter"><option value="">All</option></select>
-          <label class="muted">Auto-refresh</label>
-          <select id="autoRefresh"><option value="0">Off</option><option value="30">30s</option><option value="60">60s</option><option value="300">5m</option></select>
-        </div>
-      </div>
-    </div>
-
-    <div style="width:360px;display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-      <div id="loader">Status: Idle</div>
-      <div class="small-row"><div class="muted">Rows loaded:</div>&nbsp;<div id="rowsCount">0</div></div>
+  <div class="header">
+    <div class="title">Sales Dashboard</div>
+    <div class="controls">
+      <button id="analyzeBtn" class="btn">Analyze</button>
+      <button id="exportBtn" class="btn secondary">Export PDF</button>
     </div>
   </div>
 
-  <div class="card" style="padding:12px">
+  <div class="card top-row">
+    <div class="filters" style="flex:1">
+      <label class="small">Year</label>
+      <select id="yearFilter"><option value="">All</option></select>
+      <label class="small">Product</label>
+      <select id="productFilter"><option value="">All</option></select>
+    </div>
+    <div class="info-right">
+      <div id="loader" class="small">Status: Idle</div>
+      <div class="small">Rows loaded: <span id="rowsCount">0</span></div>
+    </div>
+  </div>
+
+  <div class="card">
     <div style="display:flex;gap:12px;align-items:center;justify-content:space-between">
-      <div style="display:flex;gap:12px;width:100%">
+      <div class="kpis">
         <div class="kpi"><div class="label">Total Sales</div><div id="kpiSales" class="value">$0</div></div>
         <div class="kpi"><div class="label">Total Orders</div><div id="kpiOrders" class="value">0</div></div>
         <div class="kpi"><div class="label">Average Order Value</div><div id="kpiAov" class="value">$0.00</div></div>
       </div>
       <div style="text-align:right">
-        <button id="debugBtn" class="secondary">Run Debug</button>
+        <button id="debugBtn" class="btn secondary">Run Debug</button>
       </div>
     </div>
   </div>
 
   <div class="charts-grid">
     <div class="chart-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="chart-header">
         <div style="font-weight:700">Sales by Product Line</div>
-        <div class="muted">Pie</div>
+        <div><button class="expand-btn" data-chart="product">Expand</button></div>
       </div>
-      <div id="chartProduct" style="width:100%;height:280px"></div>
+      <div class="chart-body"><div id="chartProduct" class="preview"></div></div>
     </div>
 
     <div class="chart-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="chart-header">
         <div style="font-weight:700">Sales by Month</div>
-        <div class="muted">Trend</div>
+        <div><button class="expand-btn" data-chart="month">Expand</button></div>
       </div>
-      <div id="chartMonth" style="width:100%;height:280px"></div>
+      <div class="chart-body"><div id="chartMonth" class="preview"></div></div>
     </div>
 
     <div class="chart-card" style="grid-column:1/3">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="chart-header">
         <div style="font-weight:700">Top 10 Customers</div>
-        <div class="muted">Bar</div>
+        <div><button class="expand-btn" data-chart="customers">Expand</button></div>
       </div>
-      <div id="chartCustomers" style="width:100%;height:300px"></div>
+      <div class="chart-body"><div id="chartCustomers" class="preview"></div></div>
     </div>
   </div>
 
-  <footer>gs-dashboard-sales · Interactive Sales Dashboard built with Google Sheets + Apps Script</footer>
+  <div class="footer">gs-dashboard-sales · Interactive Sales Dashboard built with Google Sheets + Apps Script · Nicolas Buelvas</div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <div id="modalTitle" style="font-weight:700"></div>
+      <div><button id="closeModal" class="expand-btn">Close</button></div>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
 </div>
 
 <script>
@@ -110,60 +118,96 @@ google.charts.load('current', { packages:['corechart','bar','line'] });
 
 let rawRows = [];
 let normalized = [];
-let refreshTimer = null;
 let secondsTimer = null;
 let secondCount = 0;
 
-document.getElementById('analyzeBtn').addEventListener('click', analyze);
+document.getElementById('analyzeBtn').addEventListener('click', analyzeLive);
 document.getElementById('exportBtn').addEventListener('click', exportPdf);
 document.getElementById('debugBtn').addEventListener('click', runDebug);
 document.getElementById('yearFilter').addEventListener('change', drawAllCharts);
 document.getElementById('productFilter').addEventListener('change', drawAllCharts);
-document.getElementById('autoRefresh').addEventListener('change', setupAutoRefresh);
+document.querySelectorAll('.expand-btn').forEach(b => b.addEventListener('click', e => openModalForChart(e.currentTarget.dataset.chart)));
+document.getElementById('closeModal').addEventListener('click', closeModal);
+window.addEventListener('focus', () => checkRefresh());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkRefresh(); });
 
-function setLoader(text) {
-  document.getElementById('loader').textContent = 'Status: ' + text;
-}
+function setLoader(text) { document.getElementById('loader').textContent = 'Status: ' + text; }
 
-function tickSeconds() {
-  secondCount++;
-  setLoader('Loading... (' + secondCount + 's)');
-}
+function tickSeconds() { secondCount++; setLoader('Loading... (' + secondCount + 's)'); }
 
-function analyze() {
-  disableButtons(true);
-  rawRows = [];
-  normalized = [];
-  document.getElementById('rowsCount').textContent = '0';
-  secondCount = 0;
-  setLoader('Requesting data...');
-  startSeconds();
-
-  google.script.run
-    .withSuccessHandler(res => {
+function analyzeLive() {
+  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
+    disableButtons(true);
+    startSeconds();
+    setLoader('Requesting data (live)...');
+    window.opener.google.script.run.withSuccessHandler(res => {
       stopSeconds();
-      if (res.error) {
-        setLoader('Error: ' + res.error);
-        disableButtons(false);
-        return;
-      }
-      rawRows = res.raw || [];
-      document.getElementById('rowsCount').textContent = rawRows.length;
-      setLoader('Loaded ' + rawRows.length + ' rows. Normalizing...');
-      google.charts.setOnLoadCallback(() => {
-        normalized = normalizeClient(rawRows);
-        populateFilters(normalized);
-        drawAllCharts();
-        setLoader('Ready');
-        disableButtons(false);
-      });
-    })
-    .withFailureHandler(err => {
-      stopSeconds();
-      setLoader('Error: ' + err);
       disableButtons(false);
-    })
-    .getSalesData_vC();
+      if (res.error) { setLoader('Error: ' + res.error); return; }
+      rawRows = res.raw || [];
+      try { localStorage.setItem('gs_dashboard_raw', JSON.stringify(rawRows)); } catch(e){}
+      localStorage.setItem('gs_last_refresh_ts', Date.now().toString());
+      document.getElementById('rowsCount').textContent = rawRows.length;
+      normalized = normalizeClient(rawRows);
+      populateFilters(normalized);
+      drawAllCharts();
+      setLoader('Ready (live)');
+    }).withFailureHandler(err => {
+      stopSeconds();
+      disableButtons(false);
+      setLoader('Error: ' + err);
+    }).getSalesData_vC();
+  } else {
+    setLoader('Live fetch unavailable');
+    // no alert here: user may close opener intentionally
+  }
+}
+
+function checkRefresh() {
+  const lastLocal = Number(localStorage.getItem('gs_last_refresh_ts') || 0);
+  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
+    window.opener.google.script.run.withSuccessHandler(ts => {
+      const remote = Number(ts || 0);
+      if (remote && remote > lastLocal) {
+        analyzeLive();
+      }
+    }).withFailureHandler(() => {
+      // ignore
+    }).getDashboardRefreshTS();
+  } else {
+    // opener not available: nothing to do (cached mode)
+  }
+}
+
+function loadInitialData() {
+  const cached = localStorage.getItem('gs_dashboard_raw');
+  if (cached) {
+    try {
+      rawRows = JSON.parse(cached);
+      document.getElementById('rowsCount').textContent = rawRows.length;
+      normalized = normalizeClient(rawRows);
+      populateFilters(normalized);
+      drawAllCharts();
+      setLoader('Ready (cached)');
+      return;
+    } catch(e){}
+  }
+  if (typeof INITIAL_RAW !== 'undefined' && INITIAL_RAW && INITIAL_RAW.length) {
+    rawRows = INITIAL_RAW;
+    try { localStorage.setItem('gs_dashboard_raw', JSON.stringify(rawRows)); } catch(e){}
+    localStorage.setItem('gs_last_refresh_ts', Date.now().toString());
+    document.getElementById('rowsCount').textContent = rawRows.length;
+    normalized = normalizeClient(rawRows);
+    populateFilters(normalized);
+    drawAllCharts();
+    setLoader('Ready (server snapshot)');
+    return;
+  }
+  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
+    analyzeLive();
+    return;
+  }
+  setLoader('No data available');
 }
 
 function normalizeClient(rows) {
@@ -188,26 +232,16 @@ function normalizeClient(rows) {
 function populateFilters(data) {
   const yearSet = new Set();
   const productSet = new Set();
-  data.forEach(r => {
-    if (r.YEAR_ID) yearSet.add(String(r.YEAR_ID));
-    if (r.PRODUCTLINE) productSet.add(r.PRODUCTLINE);
-  });
-
+  data.forEach(r => { if (r.YEAR_ID) yearSet.add(String(r.YEAR_ID)); if (r.PRODUCTLINE) productSet.add(r.PRODUCTLINE); });
   const yearSel = document.getElementById('yearFilter');
   const prodSel = document.getElementById('productFilter');
   const currentYear = yearSel.value;
   const currentProd = prodSel.value;
-
   yearSel.innerHTML = '<option value="">All</option>';
-  Array.from(yearSet).sort().forEach(y => {
-    const opt = document.createElement('option'); opt.value = y; opt.text = y; yearSel.appendChild(opt);
-  });
+  Array.from(yearSet).sort().forEach(y => { const opt = document.createElement('option'); opt.value = y; opt.text = y; yearSel.appendChild(opt); });
   if (Array.from(yearSet).includes(currentYear)) yearSel.value = currentYear;
-
   prodSel.innerHTML = '<option value="">All</option>';
-  Array.from(productSet).sort().forEach(p => {
-    const opt = document.createElement('option'); opt.value = p; opt.text = p; prodSel.appendChild(opt);
-  });
+  Array.from(productSet).sort().forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.text = p; prodSel.appendChild(opt); });
   if (Array.from(productSet).includes(currentProd)) prodSel.value = currentProd;
 }
 
@@ -273,14 +307,6 @@ function drawTopCustomers(data) {
   chart.draw(dt, { title: '', chartArea: { left: 160, top: 20, width: '70%', height: '70%' }, legend: { position: 'none' } });
 }
 
-function setupAutoRefresh() {
-  const val = Number(document.getElementById('autoRefresh').value) || 0;
-  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
-  if (val > 0) {
-    refreshTimer = setInterval(() => { analyze(); }, val * 1000);
-  }
-}
-
 function startSeconds() {
   if (secondsTimer) clearInterval(secondsTimer);
   secondCount = 0;
@@ -292,15 +318,6 @@ function stopSeconds() {
   secondsTimer = null;
 }
 
-function tickSeconds() {
-  secondCount++;
-  setLoader('Loading... (' + secondCount + 's)');
-}
-
-function setLoader(msg) {
-  document.getElementById('loader').textContent = 'Status: ' + msg;
-}
-
 function disableButtons(disabled) {
   document.getElementById('analyzeBtn').disabled = disabled;
   document.getElementById('exportBtn').disabled = disabled;
@@ -308,34 +325,96 @@ function disableButtons(disabled) {
 }
 
 function exportPdf() {
-  disableButtons(true);
-  setLoader('Exporting PDF...');
-  google.script.run.withSuccessHandler(res => {
-    disableButtons(false);
-    if (res && res.success) {
-      setLoader('PDF exported to Drive');
-    } else {
-      setLoader('Export error: ' + (res && res.error ? res.error : 'unknown'));
-    }
-  }).withFailureHandler(err => {
-    disableButtons(false);
-    setLoader('Export error: ' + err);
-  }).exportDataSheetToPDF();
+  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
+    disableButtons(true);
+    setLoader('Exporting PDF...');
+    window.opener.google.script.run.withSuccessHandler(res => {
+      disableButtons(false);
+      if (res && res.success) setLoader('PDF exported to Drive');
+      else setLoader('Export error: ' + (res && res.error ? res.error : 'unknown'));
+    }).withFailureHandler(err => {
+      disableButtons(false);
+      setLoader('Export error: ' + err);
+    }).exportDataSheetToPDF();
+  } else {
+    alert('Export unavailable. Keep the small opener dialog open in the Sheets window and try again.');
+  }
 }
 
 function runDebug() {
-  setLoader('Running debug on server...');
-  google.script.run.withSuccessHandler(res => {
-    if (res && res.error) {
-      setLoader('Debug error: ' + res.error);
-    } else {
-      setLoader('Debug completed: rows loaded=' + (res && res.rowsLoaded ? res.rowsLoaded : 'unknown'));
-    }
-  }).withFailureHandler(err => {
-    setLoader('Debug failed: ' + err);
-  }).debugSalesPipeline();
+  if (window.opener && window.opener.google && window.opener.google.script && window.opener.google.script.run) {
+    setLoader('Running debug on server...');
+    window.opener.google.script.run.withSuccessHandler(res => {
+      if (res && res.error) setLoader('Debug error: ' + res.error);
+      else setLoader('Debug completed: rows loaded=' + (res && res.rowsLoaded ? res.rowsLoaded : 'unknown'));
+    }).withFailureHandler(err => {
+      setLoader('Debug failed: ' + err);
+    }).debugSalesPipeline();
+  } else {
+    alert('Debug unavailable. Keep the small opener dialog open in the Sheets window and try again.');
+  }
 }
 
+function openModalForChart(key) {
+  const modal = document.getElementById('modalOverlay');
+  const title = { product: 'Sales by Product Line', month: 'Sales by Month', customers: 'Top 10 Customers' }[key] || 'Chart';
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = '<div id="fullChart" style="width:100%;height:100%"></div>';
+  modal.style.display = 'flex';
+  google.charts.setOnLoadCallback(() => {
+    const data = filterData();
+    if (key === 'product') drawProductPieFull(data);
+    else if (key === 'month') drawMonthLineFull(data);
+    else if (key === 'customers') drawTopCustomersFull(data);
+  });
+}
+
+function closeModal() {
+  const modal = document.getElementById('modalOverlay');
+  modal.style.display = 'none';
+  document.getElementById('modalBody').innerHTML = '';
+}
+
+function drawProductPieFull(data) {
+  const map = {};
+  data.forEach(r => { const k = r.PRODUCTLINE || 'UNKNOWN'; map[k] = (map[k] || 0) + Number(r.SALES || 0); });
+  const arr = [['Product', 'Sales']];
+  Object.keys(map).forEach(k => arr.push([k, map[k]]));
+  const dt = google.visualization.arrayToDataTable(arr);
+  const chart = new google.visualization.PieChart(document.getElementById('fullChart'));
+  chart.draw(dt, { title: '', pieHole: 0.36, chartArea: { left: 40, top: 30, width: '90%', height: '85%' }, legend: { position: 'right' } });
+}
+
+function drawMonthLineFull(data) {
+  const map = {};
+  data.forEach(r => {
+    const m = String(r.YEAR_ID || '') + '-' + String((r.MONTH_ID || '').toString().padStart(2, '0'));
+    map[m] = (map[m] || 0) + Number(r.SALES || 0);
+  });
+  const arr = [['Month', 'Sales']];
+  Object.keys(map).sort().forEach(k => arr.push([k, map[k]]));
+  if (arr.length === 1) arr.push(['No data', 0]);
+  const dt = google.visualization.arrayToDataTable(arr);
+  const chart = new google.visualization.LineChart(document.getElementById('fullChart'));
+  chart.draw(dt, { title: '', pointSize: 6, chartArea: { left: 80, top: 40, width: '85%', height: '75%' } });
+}
+
+function drawTopCustomersFull(data) {
+  const map = {};
+  data.forEach(r => { const k = r.CUSTOMERNAME || 'Unknown'; map[k] = (map[k] || 0) + Number(r.SALES || 0); });
+  const items = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 20);
+  const arr = [['Customer', 'Sales']];
+  items.forEach(i => arr.push([i[0], i[1]]));
+  const dt = google.visualization.arrayToDataTable(arr);
+  const chart = new google.visualization.BarChart(document.getElementById('fullChart'));
+  chart.draw(dt, { title: '', chartArea: { left: 200, top: 20, width: '70%', height: '80%' }, legend: { position: 'none' } });
+}
+
+google.charts.setOnLoadCallback(loadInitialData);
+</script>
+
+<script>
+const INITIAL_RAW = <?!= INITIAL_RAW ?>;
 </script>
 </body>
 </html>
