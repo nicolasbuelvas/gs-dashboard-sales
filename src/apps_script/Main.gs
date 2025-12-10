@@ -1,7 +1,7 @@
-/** 
+/**
  * SALES DASHBOARD (Sheets API)
- * Google Sheets + Apps Script + Google Sheets Api
-*/
+ * Google Sheets + Apps Script
+ */
 
 const SHEET_NAME = "sales_data_sample";
 const SPREADSHEET_ID = SpreadsheetApp.getActive().getId();
@@ -23,7 +23,7 @@ function onOpen() {
 function showDashboard() {
   const html = HtmlService.createTemplateFromFile("Ui")
     .evaluate()
-    .setWidth(380)
+    .setWidth(900)
     .setTitle("Sales Dashboard");
   SpreadsheetApp.getUi().showSidebar(html);
 }
@@ -43,53 +43,93 @@ function getSalesData_vC() {
   }
 }
 
-/**
- * DEBUG PIPELINE
-*/
+function exportDataSheetToPDF() {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) throw new Error("Sheet not found: " + SHEET_NAME);
 
+    const url = ss.getUrl();
+    const exportUrl = url.replace(/\/edit.*$/, '') +
+      'export?format=pdf' +
+      '&gid=' + sheet.getSheetId() +
+      '&size=letter' +
+      '&portrait=true' +
+      '&fitw=true' +
+      '&sheetnames=false&printtitle=false&pagenumbers=false' +
+      '&gridlines=true&fzr=false';
+
+    const token = ScriptApp.getOAuthToken();
+    const response = UrlFetchApp.fetch(exportUrl, {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+
+    const blob = response.getBlob().setName(ss.getName() + ' - ' + SHEET_NAME + '.pdf');
+
+    try {
+      const file = DriveApp.getFileById(ss.getId());
+      const parents = file.getParents();
+      if (parents.hasNext()) {
+        const folder = parents.next();
+        folder.createFile(blob);
+      } else {
+        DriveApp.createFile(blob);
+      }
+    } catch (e) {
+      DriveApp.createFile(blob);
+    }
+
+    return { success: true };
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
+/* Debug pipeline - server-side checks and normalization trace */
 function debugSalesPipeline() {
-  const log = msg => Logger.log("🔍 " + msg);
+  const log = msg => Logger.log(msg);
 
-  log("=== START DEBUG PIPELINE ===");
+  log("START DEBUG PIPELINE");
 
   const ss = SpreadsheetApp.getActive();
   const sheet = ss.getSheetByName(SHEET_NAME);
 
   if (!sheet) {
-    log("❌ Sheet not found: " + SHEET_NAME);
-    return;
+    log("Sheet not found: " + SHEET_NAME);
+    return { error: "Sheet not found: " + SHEET_NAME };
   }
-  log("✔ Sheet found");
+  log("Sheet found");
 
   let rows;
   try {
     rows = sheet.getDataRange().getValues();
-    log("✔ Rows loaded: " + rows.length);
+    log("Rows loaded: " + rows.length);
   } catch (e) {
-    log("❌ Error reading sheet: " + e);
-    return;
+    log("Error reading sheet: " + e);
+    return { error: String(e) };
   }
 
   const rawHeaders = rows[0].map(h => String(h ?? "").trim());
   log("Headers: " + JSON.stringify(rawHeaders));
 
-  EXPECTED_HEADERS.forEach(h => {
-    if (!rawHeaders.includes(h)) log("⚠ Missing header: " + h);
-  });
-
-  log("=== Normalizing ===");
-  try {
-    const normalized = normalizeRowsInMemory_debug(rows);
-    log("✔ Normalized rows: " + normalized.length);
-  } catch (e) {
-    log("❌ Error normalizing: " + e);
+  const missing = EXPECTED_HEADERS.filter(h => !rawHeaders.includes(h));
+  if (missing.length) {
+    log("Missing headers: " + missing.join(", "));
+  } else {
+    log("All expected headers present.");
   }
 
-  log("=== END DEBUG PIPELINE ===");
+  log("Normalizing sample rows (first 50 rows) for inspection");
+  const sampleRows = rows.slice(0, 51); // header + up to 50 rows
+  const normalizedSample = normalizeRowsInMemory_debug(sampleRows);
+  log("Normalized sample count: " + normalizedSample.length);
+
+  log("END DEBUG PIPELINE");
+  return { rowsLoaded: rows.length, normalizedSampleCount: normalizedSample.length, missingHeaders: missing };
 }
 
 function normalizeRowsInMemory_debug(rows) {
-  const log = msg => Logger.log("   ↳ " + msg);
+  const log = msg => Logger.log(msg);
 
   const rawHeaders = rows[0].map(h => String(h ?? "").trim());
   const idxMap = {};
@@ -100,7 +140,7 @@ function normalizeRowsInMemory_debug(rows) {
   const out = [];
 
   for (let r = 1; r < rows.length; r++) {
-    log("Row " + r);
+    log("Processing row " + r);
 
     const row = rows[r];
     const temp = {};
@@ -149,9 +189,9 @@ function normalizeRowsInMemory_debug(rows) {
 
     if (validSales > 0 && validOrder > 0) {
       out.push(temp);
-      log("✔ Added");
+      log("Added");
     } else {
-      log("✖ Discarded");
+      log("Discarded");
     }
   }
 

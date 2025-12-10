@@ -1,140 +1,181 @@
 <!DOCTYPE html>
-
 <html>
 <head>
 <meta charset="utf-8">
 <base target="_top">
+<title>Sales Dashboard</title>
 <script src="https://www.gstatic.com/charts/loader.js"></script>
-
 <style>
-  body { font-family: Inter, Arial; margin: 0; padding: 16px; background: #f6f9fc; }
-  header { display: flex; justify-content: space-between; align-items: center; }
-  h1 { margin: 0; font-size: 18px; color: #1a73e8; }
-  button { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; }
-  .primary { background: #1a73e8; color: white; }
-  .card { background: white; padding: 14px; margin-top: 14px; border-radius: 8px; }
-  .chart { height: 320px; }
-  #loader { font-size: 14px; margin-top: 6px; color: #555; }
+  :root{
+    --bg:#f6f9fc; --card:#fff; --accent:#1a73e8; --muted:#6b7280;
+    --glass: rgba(16,24,40,0.04);
+  }
+  html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:#0b1220}
+  header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px}
+  h1{margin:0;font-size:18px;color:var(--accent)}
+  .controls{display:flex;gap:8px;align-items:center}
+  button{border:0;border-radius:8px;padding:8px 12px;cursor:pointer;background:var(--accent);color:#fff;font-weight:600}
+  .secondary{background:#374151;color:#fff;padding:8px 12px;border-radius:8px}
+  .container{padding:0 24px 24px}
+  .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 8px 24px var(--glass);margin-bottom:16px}
+  .top-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  .kpi{flex:1;min-width:160px;background:#fff;border-radius:10px;padding:12px;text-align:center;box-shadow:0 4px 12px rgba(2,6,23,0.04)}
+  .kpi .label{font-size:12px;color:var(--muted)}
+  .kpi .value{font-size:20px;color:var(--accent);font-weight:700;margin-top:6px}
+  .filters{display:flex;gap:12px;align-items:center}
+  select{padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#fff}
+  #loader{font-size:14px;color:var(--muted)}
+  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .chart-card{background:#fff;border-radius:10px;padding:12px;min-height:320px;box-shadow:0 6px 18px rgba(2,6,23,0.04)}
+  .small-row{display:flex;gap:12px;align-items:center;justify-content:flex-end}
+  .muted{color:var(--muted)}
+  footer{padding:12px 24px;font-size:13px;color:var(--muted)}
+  @media(max-width:900px){ .charts-grid{grid-template-columns:1fr} .top-row{flex-direction:column;align-items:stretch} .kpi{width:100%} }
 </style>
 </head>
-
 <body>
 <header>
   <h1>Sales Dashboard</h1>
-  <div>
-    <button class="primary" onclick="analyze()">Analyze</button>
-    <button onclick="expand()">Expand</button>
+  <div class="controls">
+    <button id="analyzeBtn">Analyze</button>
+    <button id="exportBtn" class="secondary">Export PDF</button>
   </div>
 </header>
 
-<div class="card">
-  <div id="message">Press Analyze to load data.</div>
-  <div id="loader" style="display:none;"></div>
+<div class="container">
+  <div class="card top-row">
+    <div style="flex:1">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="filters">
+          <label class="muted">Year</label>
+          <select id="yearFilter"><option value="">All</option></select>
+          <label class="muted">Product</label>
+          <select id="productFilter"><option value="">All</option></select>
+          <label class="muted">Auto-refresh</label>
+          <select id="autoRefresh"><option value="0">Off</option><option value="30">30s</option><option value="60">60s</option><option value="300">5m</option></select>
+        </div>
+      </div>
+    </div>
 
-  <div id="kpis" style="display:flex;gap:18px;margin-top:12px;"></div>
-
-  <div style="text-align:right;margin-top:8px;">
-    <button onclick="popChart()">Enlarge Chart</button>
+    <div style="width:360px;display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <div id="loader">Status: Idle</div>
+      <div class="small-row"><div class="muted">Rows loaded:</div>&nbsp;<div id="rowsCount">0</div></div>
+    </div>
   </div>
 
-  <div id="chart" class="chart"></div>
+  <div class="card" style="padding:12px">
+    <div style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+      <div style="display:flex;gap:12px;width:100%">
+        <div class="kpi"><div class="label">Total Sales</div><div id="kpiSales" class="value">$0</div></div>
+        <div class="kpi"><div class="label">Total Orders</div><div id="kpiOrders" class="value">0</div></div>
+        <div class="kpi"><div class="label">Average Order Value</div><div id="kpiAov" class="value">$0.00</div></div>
+      </div>
+      <div style="text-align:right">
+        <button id="debugBtn" class="secondary">Run Debug</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700">Sales by Product Line</div>
+        <div class="muted">Pie</div>
+      </div>
+      <div id="chartProduct" style="width:100%;height:280px"></div>
+    </div>
+
+    <div class="chart-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700">Sales by Month</div>
+        <div class="muted">Trend</div>
+      </div>
+      <div id="chartMonth" style="width:100%;height:280px"></div>
+    </div>
+
+    <div class="chart-card" style="grid-column:1/3">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700">Top 10 Customers</div>
+        <div class="muted">Bar</div>
+      </div>
+      <div id="chartCustomers" style="width:100%;height:300px"></div>
+    </div>
+  </div>
+
+  <footer>gs-dashboard-sales · Interactive Sales Dashboard built with Google Sheets + Apps Script</footer>
 </div>
 
 <script>
-google.charts.load('current', { packages:['corechart','line'] });
+google.charts.load('current', { packages:['corechart','bar','line'] });
 
-let lastChartData = null;
+let rawRows = [];
+let normalized = [];
+let refreshTimer = null;
+let secondsTimer = null;
+let secondCount = 0;
 
-function expand() {
-  google.script.run.withSuccessHandler(html => {
-    const w = window.open('', '_blank');
-    if (!w) { alert('Please enable pop-ups to open the window.'); return; }
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-  }).getFullscreenHTML();
+document.getElementById('analyzeBtn').addEventListener('click', analyze);
+document.getElementById('exportBtn').addEventListener('click', exportPdf);
+document.getElementById('debugBtn').addEventListener('click', runDebug);
+document.getElementById('yearFilter').addEventListener('change', drawAllCharts);
+document.getElementById('productFilter').addEventListener('change', drawAllCharts);
+document.getElementById('autoRefresh').addEventListener('change', setupAutoRefresh);
+
+function setLoader(text) {
+  document.getElementById('loader').textContent = 'Status: ' + text;
 }
 
-function popChart() {
-  if (!lastChartData) {
-    alert("No chart available.");
-    return;
-  }
-  const w = window.open("", "_blank", "width=600,height=500");
-  if (!w) { alert("Please enable pop-ups to view the chart."); return; }
-
-  w.document.write("<div id='chart' style='width:100%;height:100%;'></div>");
-  w.document.close();
-
-  google.charts.setOnLoadCallback(() => {
-    const chart = new google.visualization.PieChart(w.document.getElementById('chart'));
-    chart.draw(lastChartData, { pieHole: 0.4 });
-  });
+function tickSeconds() {
+  secondCount++;
+  setLoader('Loading... (' + secondCount + 's)');
 }
 
 function analyze() {
-  const msg = document.getElementById('message');
-  const loader = document.getElementById('loader');
-
-  msg.textContent = "Loading...";
-  msg.style.display = "block";
-  loader.style.display = "block";
-
-  let sec = 0;
-  const timer = setInterval(() => {
-    sec++;
-    loader.textContent = "Loading... (" + sec + "s)";
-  }, 1000);
+  disableButtons(true);
+  rawRows = [];
+  normalized = [];
+  document.getElementById('rowsCount').textContent = '0';
+  secondCount = 0;
+  setLoader('Requesting data...');
+  startSeconds();
 
   google.script.run
     .withSuccessHandler(res => {
+      stopSeconds();
       if (res.error) {
-        clearInterval(timer);
-        msg.textContent = "Error: " + res.error;
+        setLoader('Error: ' + res.error);
+        disableButtons(false);
         return;
       }
-
-      if (!res.raw || !res.raw.length) {
-        clearInterval(timer);
-        msg.textContent = "No rows found.";
-        return;
-      }
-
-      loader.textContent = "Loaded " + res.raw.length + " rows...";
-
+      rawRows = res.raw || [];
+      document.getElementById('rowsCount').textContent = rawRows.length;
+      setLoader('Loaded ' + rawRows.length + ' rows. Normalizing...');
       google.charts.setOnLoadCallback(() => {
-        const data = normalizeClient(res.raw);
-
-        if (!data.length) {
-          clearInterval(timer);
-          msg.textContent = "No valid rows after filtering.";
-          return;
-        }
-
-        clearInterval(timer);
-        msg.style.display = "none";
-        loader.style.display = "none";
-
-        render(data);
+        normalized = normalizeClient(rawRows);
+        populateFilters(normalized);
+        drawAllCharts();
+        setLoader('Ready');
+        disableButtons(false);
       });
     })
     .withFailureHandler(err => {
-      clearInterval(timer);
-      msg.textContent = "Error: " + err;
+      stopSeconds();
+      setLoader('Error: ' + err);
+      disableButtons(false);
     })
     .getSalesData_vC();
 }
 
-function normalizeClient(raw) {
-  const headers = raw[0].map(h => String(h || '').trim());
+function normalizeClient(rows) {
+  if (!rows || !rows.length) return [];
+  const headers = rows[0].map(h => String(h || '').trim());
   const out = [];
-
-  for (let i = 1; i < raw.length; i++) {
-    const row = raw[i];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
     const obj = {};
     headers.forEach((h, c) => obj[h] = row[c]);
-    const sales = Number(String(obj.SALES||0).replace(/,/g,''));
-    const order = Number(String(obj.ORDERNUMBER||0).replace(/\D/g,''));
+    const sales = Number(String(obj.SALES || 0).replace(/,/g, '')) || 0;
+    const order = Number(String(obj.ORDERNUMBER || 0).replace(/\D/g, '')) || 0;
     if (sales > 0 && order > 0) {
       obj.SALES = sales;
       obj.ORDERNUMBER = order;
@@ -144,35 +185,157 @@ function normalizeClient(raw) {
   return out;
 }
 
-function render(data) {
-  const kpis = document.getElementById('kpis');
+function populateFilters(data) {
+  const yearSet = new Set();
+  const productSet = new Set();
+  data.forEach(r => {
+    if (r.YEAR_ID) yearSet.add(String(r.YEAR_ID));
+    if (r.PRODUCTLINE) productSet.add(r.PRODUCTLINE);
+  });
 
-  const totalSales = data.reduce((s, r) => s + r.SALES, 0);
-  const totalOrders = new Set(data.map(r => r.ORDERNUMBER)).size;
+  const yearSel = document.getElementById('yearFilter');
+  const prodSel = document.getElementById('productFilter');
+  const currentYear = yearSel.value;
+  const currentProd = prodSel.value;
 
-  kpis.innerHTML =
-    "<div><b>Total Sales</b><div style='color:#1a73e8'>$" +
-    totalSales.toLocaleString() +
-    "</div></div>" +
-    "<div><b>Total Orders</b><div>" +
-    totalOrders +
-    "</div></div>";
+  yearSel.innerHTML = '<option value="">All</option>';
+  Array.from(yearSet).sort().forEach(y => {
+    const opt = document.createElement('option'); opt.value = y; opt.text = y; yearSel.appendChild(opt);
+  });
+  if (Array.from(yearSet).includes(currentYear)) yearSel.value = currentYear;
 
-  const prod = {};
-  data.forEach(r => prod[r.PRODUCTLINE] = (prod[r.PRODUCTLINE] || 0) + r.SALES);
+  prodSel.innerHTML = '<option value="">All</option>';
+  Array.from(productSet).sort().forEach(p => {
+    const opt = document.createElement('option'); opt.value = p; opt.text = p; prodSel.appendChild(opt);
+  });
+  if (Array.from(productSet).includes(currentProd)) prodSel.value = currentProd;
+}
 
-  const arr = [['Product', 'Sales']];
-  Object.keys(prod).forEach(k => arr.push([k, prod[k]]));
-
-  lastChartData = google.visualization.arrayToDataTable(arr);
-
-  const chart = new google.visualization.PieChart(document.getElementById('chart'));
-  chart.draw(lastChartData, {
-    title: 'Sales by Product Line',
-    pieHole: 0.36,
-    chartArea: { left: 20, top: 40, width: '80%', height: '75%' }
+function filterData() {
+  const year = document.getElementById('yearFilter').value;
+  const product = document.getElementById('productFilter').value;
+  return normalized.filter(r => {
+    const matchYear = !year || String(r.YEAR_ID) === year;
+    const matchProd = !product || r.PRODUCTLINE === product;
+    return matchYear && matchProd;
   });
 }
+
+function drawAllCharts() {
+  const data = filterData();
+  drawKpis(data);
+  drawProductPie(data);
+  drawMonthLine(data);
+  drawTopCustomers(data);
+}
+
+function drawKpis(data) {
+  const totalSales = data.reduce((s, r) => s + (Number(r.SALES) || 0), 0);
+  const totalOrders = new Set(data.map(r => String(r.ORDERNUMBER))).size;
+  const aov = totalOrders ? (totalSales / totalOrders) : 0;
+  document.getElementById('kpiSales').textContent = '$' + totalSales.toLocaleString();
+  document.getElementById('kpiOrders').textContent = totalOrders;
+  document.getElementById('kpiAov').textContent = '$' + aov.toFixed(2);
+}
+
+function drawProductPie(data) {
+  const map = {};
+  data.forEach(r => { const k = r.PRODUCTLINE || 'UNKNOWN'; map[k] = (map[k] || 0) + Number(r.SALES || 0); });
+  const arr = [['Product', 'Sales']];
+  Object.keys(map).forEach(k => arr.push([k, map[k]]));
+  const dt = google.visualization.arrayToDataTable(arr);
+  const chart = new google.visualization.PieChart(document.getElementById('chartProduct'));
+  chart.draw(dt, { title: '', pieHole: 0.36, chartArea: { left: 20, top: 30, width: '85%', height: '80%' } });
+}
+
+function drawMonthLine(data) {
+  const map = {};
+  data.forEach(r => {
+    const m = String(r.YEAR_ID || '') + '-' + String((r.MONTH_ID || '').toString().padStart(2, '0'));
+    map[m] = (map[m] || 0) + Number(r.SALES || 0);
+  });
+  const arr = [['Month', 'Sales']];
+  Object.keys(map).sort().forEach(k => arr.push([k, map[k]]));
+  if (arr.length === 1) arr.push(['No data', 0]);
+  const dt = google.visualization.arrayToDataTable(arr);
+  const chart = new google.visualization.LineChart(document.getElementById('chartMonth'));
+  chart.draw(dt, { title: '', pointSize: 4, chartArea: { left: 60, top: 30, width: '85%', height: '70%' } });
+}
+
+function drawTopCustomers(data) {
+  const map = {};
+  data.forEach(r => { const k = r.CUSTOMERNAME || 'Unknown'; map[k] = (map[k] || 0) + Number(r.SALES || 0); });
+  const items = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const arr = [['Customer', 'Sales']];
+  items.forEach(i => arr.push([i[0], i[1]]));
+  const dt = google.visualization.arrayToDataTable(arr);
+  const chart = new google.visualization.BarChart(document.getElementById('chartCustomers'));
+  chart.draw(dt, { title: '', chartArea: { left: 160, top: 20, width: '70%', height: '70%' }, legend: { position: 'none' } });
+}
+
+function setupAutoRefresh() {
+  const val = Number(document.getElementById('autoRefresh').value) || 0;
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  if (val > 0) {
+    refreshTimer = setInterval(() => { analyze(); }, val * 1000);
+  }
+}
+
+function startSeconds() {
+  if (secondsTimer) clearInterval(secondsTimer);
+  secondCount = 0;
+  secondsTimer = setInterval(tickSeconds, 1000);
+}
+
+function stopSeconds() {
+  if (secondsTimer) clearInterval(secondsTimer);
+  secondsTimer = null;
+}
+
+function tickSeconds() {
+  secondCount++;
+  setLoader('Loading... (' + secondCount + 's)');
+}
+
+function setLoader(msg) {
+  document.getElementById('loader').textContent = 'Status: ' + msg;
+}
+
+function disableButtons(disabled) {
+  document.getElementById('analyzeBtn').disabled = disabled;
+  document.getElementById('exportBtn').disabled = disabled;
+  document.getElementById('debugBtn').disabled = disabled;
+}
+
+function exportPdf() {
+  disableButtons(true);
+  setLoader('Exporting PDF...');
+  google.script.run.withSuccessHandler(res => {
+    disableButtons(false);
+    if (res && res.success) {
+      setLoader('PDF exported to Drive');
+    } else {
+      setLoader('Export error: ' + (res && res.error ? res.error : 'unknown'));
+    }
+  }).withFailureHandler(err => {
+    disableButtons(false);
+    setLoader('Export error: ' + err);
+  }).exportDataSheetToPDF();
+}
+
+function runDebug() {
+  setLoader('Running debug on server...');
+  google.script.run.withSuccessHandler(res => {
+    if (res && res.error) {
+      setLoader('Debug error: ' + res.error);
+    } else {
+      setLoader('Debug completed: rows loaded=' + (res && res.rowsLoaded ? res.rowsLoaded : 'unknown'));
+    }
+  }).withFailureHandler(err => {
+    setLoader('Debug failed: ' + err);
+  }).debugSalesPipeline();
+}
+
 </script>
 </body>
 </html>
