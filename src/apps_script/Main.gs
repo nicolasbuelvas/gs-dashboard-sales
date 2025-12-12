@@ -83,6 +83,7 @@ function exportDataSheetToPDF() {
       "&gid=" + sheetId;
 
     const token = ScriptApp.getOAuthToken();
+
     const response = UrlFetchApp.fetch(exportUrl, {
       headers: { Authorization: "Bearer " + token },
       muteHttpExceptions: true
@@ -92,14 +93,12 @@ function exportDataSheetToPDF() {
       ss.getName() + " - " + SHEET_NAME + ".pdf"
     );
 
-    const parents = DriveApp.getFileById(fileId).getParents();
-    if (parents.hasNext()) {
-      parents.next().createFile(blob);
-    } else {
-      DriveApp.createFile(blob);
-    }
-
-    return { success: true };
+    // ⬇⬇⬇ Instead of saving to Drive, return blob as Base64
+    return {
+      success: true,
+      fileName: blob.getName(),
+      base64: Utilities.base64Encode(blob.getBytes())
+    };
 
   } catch (e) {
     return { error: String(e) };

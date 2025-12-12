@@ -225,7 +225,31 @@ function startSeconds(){ if(secondsTimer) clearInterval(secondsTimer); secondCou
 function stopSeconds(){ if(secondsTimer) clearInterval(secondsTimer); secondsTimer=null; }
 function disableButtons(disabled){ document.getElementById('refreshBtn').disabled=disabled; document.getElementById('exportBtn').disabled=disabled; document.getElementById('debugBtn').disabled=disabled; }
 
-function exportPdf(){ disableButtons(true); setLoader('Exporting PDF...'); window.google.script.run.withSuccessHandler(res=>{ disableButtons(false); setLoader(res&&res.success?'PDF exported to Drive':'Export error: '+(res&&res.error?'':res.error));}).withFailureHandler(err=>{ disableButtons(false); setLoader('Export error: '+err); }).exportDataSheetToPDF(); }
+function exportPdf() {
+  disableButtons(true);
+  setLoader('Exporting PDF...');
+
+  google.script.run
+    .withSuccessHandler(res => {
+      disableButtons(false);
+      if (!res || res.error) {
+        setLoader('Export error: ' + res.error);
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.href = "data:application/pdf;base64," + res.base64;
+      link.download = res.fileName;
+      link.click();
+
+      setLoader('PDF ready for download');
+    })
+    .withFailureHandler(err => {
+      disableButtons(false);
+      setLoader('Export error: ' + err);
+    })
+    .exportDataSheetToPDF();
+}
 
 function runDebug(){ setLoader('Running debug...'); window.google.script.run.withSuccessHandler(res=>{ setLoader(res&&res.error?'Debug error: '+res.error:'Debug completed: rows loaded='+res.rowsLoaded); }).withFailureHandler(err=>{ setLoader('Debug failed: '+err); }).debugSalesPipeline(); }
 
